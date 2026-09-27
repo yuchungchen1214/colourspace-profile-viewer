@@ -1,0 +1,13 @@
+{
+  "name": "colourspace-profile-viewer",
+  "version": "1.5.7",
+  "private": false,
+  "description": "A browser-based display color-space profile viewer",
+  "scripts": {
+    "test": "node --test tests/current-release.test.cjs",
+    "build:report-runtime": "node build_report_runtime.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
