@@ -1,11 +1,15 @@
 # ColourSpace Profile Viewer
 
-A browser-based tool for viewing and comparing display color-space measurements from ColourSpace BCS profiles.
+A convenient, easy-to-use browser tool for observing and presenting multiple display-measurement profiles side by side or overlaid on shared charts, using ColourSpace `.bcs` files.
+
+## Preview
+
+![ColourSpace Profile Viewer v1.5.7](demo-v1.5.7.png)
 
 ## Features
 
 - EOTF, RGB Balance, CIE xy/uv, Volumetric xyY/uvY, and Delta-E charts
-- Compare multiple BCS profiles side by side
+- Easily compare or present multiple profiles side by side or overlaid on the same charts
 - Configure target gamut, white point, EOTF, and luminance range
 - Inspect measured patches, add notes, and customize profile colors
 - Export settings, complete viewer data, or a self-contained HTML report
@@ -39,7 +43,7 @@ No package installation or runtime dependencies are required. Node.js is only ne
 
 ## Notes
 
-- Imported BCS files are read and processed locally in your browser; the app does not upload them.
+- Imported bcs files are read and processed locally in your browser; the app does not upload them.
 - Self-contained HTML reports include their report data and viewer code. Share them only with people who should have access to the included measurements.
 - Charts are for viewing and comparison; they do not perform display calibration. CIE spectral backgrounds are visual references, and displayed colors are screen approximations.
 - The public source package contains only the latest release. Personal measurements, exported reports, backups, and historical snapshots are excluded.
