@@ -123,8 +123,28 @@ function initialChartView(type, state) {
  const cx=(bounds.xmin+bounds.xmax)/2,cy=(bounds.ymin+bounds.ymax)/2;
  return {xmin:cx-side/2,xmax:cx+side/2,ymin:cy-side/2,ymax:cy+side/2};
 }
+function fitCieContent(panel) {
+ const state=panel.state;if(!state.autoFit)return;
+ const bounds=chartBounds('cie',state),base=initialChartView('cie',state),points=[
+  [bounds.xmin,bounds.ymin],[bounds.xmin,bounds.ymax],[bounds.xmax,bounds.ymin],[bounds.xmax,bounds.ymax],
+  ...['R','G','B'].map(channel=>TARGET_CONFIG.gamut.primaries[channel]),
+  [TARGET_CONFIG.whitePoint.x,TARGET_CONFIG.whitePoint.y],
+  ...cieTargetVertices(null).map(({x,y})=>[x,y])
+ ];
+ forEachVisibleProfileBackToFront(profile=>{
+  for(const q of profile.points){const sum=q.X+q.Y+q.Z;if(!(sum>1e-12))continue;points.push([q.X/sum,q.Y/sum])}
+  const white=targetWhitePointForProfile(profile);if(white)points.push([white.x,white.y]);
+  for(const vertex of cieTargetVertices(profile))points.push([vertex.x,vertex.y]);
+ },panel);
+ const mapped=points.map(([x,y])=>cieCoordinates(x,y,state.coordinateMode)).filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y));
+ if(!mapped.length){state.view=base;return}
+ let xmin=base.xmin,xmax=base.xmax,ymin=base.ymin,ymax=base.ymax;
+ for(const p of mapped){xmin=Math.min(xmin,p.x);xmax=Math.max(xmax,p.x);ymin=Math.min(ymin,p.y);ymax=Math.max(ymax,p.y)}
+ const width=xmax-xmin,height=ymax-ymin,side=Math.max(width,height),pad=side*.06,cx=(xmin+xmax)/2,cy=(ymin+ymax)/2,extent=side/2+pad;
+ state.view={xmin:cx-extent,xmax:cx+extent,ymin:cy-extent,ymax:cy+extent};
+}
 function createChartState(type) {
- const state={relative:true,absolute:false,coordinateMode:'xy',allPoints:true,distribution:false};
+ const state={relative:true,absolute:false,coordinateMode:'xy',allPoints:true,distribution:false,autoFit:type==='cie'};
  if(type==='graph3d'){state.coordinateMode='xyY';state.allPoints=true;state.camera={yaw:1.15,pitch:.31,panX:0,panY:-18,zoom:1.16}}
  state.view=initialChartView(type,state);
  return state;
@@ -140,6 +160,7 @@ function chartTicks(lo,hi,step) {
 }
 function prepareChart(panel) {
  const {canvas,type,state}=panel,ctx=canvas.getContext('2d');
+ if(type==='cie')fitCieContent(panel);
  const w=canvas.clientWidth,h=canvas.clientHeight,ratio=devicePixelRatio||1;
  canvas.width=Math.round(w*ratio);canvas.height=Math.round(h*ratio);ctx.scale(ratio,ratio);
  ctx.fillStyle='#111214';ctx.fillRect(0,0,w,h);
@@ -179,7 +200,7 @@ function prepareChart(panel) {
  for(const q of yt){const y=Y(q);if(last-y>=28){ctx.fillText(label(q),frame.x-7,y+4);last=y}}
  ctx.textAlign='start';
  // Measured EOTF and absolute balance errors can extend beyond target bounds.
- const clip=type==='deltae'||type==='eotf'||(type==='balance'&&state.absolute)?frame:domainClip;
+ const clip=type==='cie'||type==='deltae'||type==='eotf'||(type==='balance'&&state.absolute)?frame:domainClip;
  panel.plot=frame;panel.clip=clip;
  return {ctx,X,Y,frame,clip};
 }
@@ -244,6 +265,32 @@ function cieCoordinates(x,y,mode) {
  if(mode==='xy')return {x,y};
  const d=-2*x+12*y+3;return {x:4*x/d,y:9*y/d};
 }
+function cieTargetVertices(profile=null){
+ const colors={R:'#ff3030',G:'#00ed48',B:'#3485ff',W:'#ffffff',C:'#00e8e8',M:'#ff35db',Y:'#ffe52e'};
+ const inputs={R:[1,0,0],G:[0,1,0],B:[0,0,1],W:[1,1,1],C:[0,1,1],M:[1,0,1],Y:[1,1,0]};
+ const primaries=TARGET_CONFIG.gamut.primaries,white=targetWhitePointForProfile(profile)||TARGET_CONFIG.whitePoint;
+ const matrix=safeTargetMatrices(TARGET_CONFIG.gamut,white).rgbToXyz;
+ return Object.entries(inputs).flatMap(([label,rgb])=>{
+  let x,y,xyz=null;
+  if(label==='R'||label==='G'||label==='B'){
+   [x,y]=primaries[label];
+   if(y!==0)xyz=[x/y,1,(1-x-y)/y];
+  }else if(label==='W'){
+   ({x,y}=white);if(y!==0)xyz=[x/y,1,(1-x-y)/y];
+  }else if(matrix){
+   xyz=matrix.map(row=>row.reduce((sum,value,index)=>sum+value*rgb[index],0));
+   const total=xyz.reduce((sum,value)=>sum+value,0);
+   if(Number.isFinite(total)&&Math.abs(total)>1e-12){x=xyz[0]/total;y=xyz[1]/total}else xyz=null;
+  }
+  if(!Number.isFinite(x)||!Number.isFinite(y)){
+   const active=['R','G','B'].filter((_,index)=>rgb[index]===1).map(channel=>primaries[channel]);
+   if(!active.length)return[];
+   x=active.reduce((sum,p)=>sum+p[0],0)/active.length;
+   y=active.reduce((sum,p)=>sum+p[1],0)/active.length;
+  }
+  return[{label,color:colors[label],r:rgb[0],g:rgb[1],b:rgb[2],x,y,xyz}];
+ });
+}
 function cieNodePath(ctx,px,py,de,large=false) {
  ctx.beginPath();
  if(de<1)ctx.arc(px,py,large?3:2.6,0,Math.PI*2);
@@ -258,10 +305,10 @@ function drawCiePanel(panel,graph) {
  chartLine(graph,gamut,p=>p.x,p=>p.y,'#ddd',[4,3]);
  const targetProfiles=[];forEachVisibleProfileBackToFront((profile,index)=>targetProfiles.push({profile,index}),panel);
  const markerProfiles=targetProfiles.length?targetProfiles:[{profile:null,index:null}];
- for(const {profile,index} of markerProfiles)for(const {label,color,point,r,g,b} of graph3DTargetVertices(profile)){
-  const p=patchCoords(point);if(!p)continue;const px=graph.X(p.x),py=graph.Y(p.y);
+ for(const {profile,index} of markerProfiles)for(const {label,color,x,y,xyz,r,g,b} of cieTargetVertices(profile)){
+  const p=coords(x,y);if(!Number.isFinite(p.x)||!Number.isFinite(p.y))continue;const px=graph.X(p.x),py=graph.Y(p.y);
   ctx.beginPath();ctx.arc(px,py,4,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();ctx.strokeStyle='#111214';ctx.lineWidth=1;ctx.stroke();
-  addChartPoint(panel,{px,py,xValue:p.x,yValue:p.y,r,g,b,de:NaN,target:[point.X,point.Y,point.Z],actualXYZ:null,profile:profile?.name||'Target',profileIndex:index,label,vertexColor:color,targetVertex:true});
+  addChartPoint(panel,{px,py,xValue:p.x,yValue:p.y,r,g,b,de:NaN,target:xyz,actualXYZ:null,profile:profile?.name||'Target',profileIndex:index,label,vertexColor:color,targetVertex:true});
  }
  const connect=(primaries,color)=>{const vertices=['R','G','B'].map(key=>primaries[key]).filter(Boolean).map(patchCoords);if(vertices.length===3)chartLine(graph,[...vertices,vertices[0]],p=>p.x,p=>p.y,color)};
  const hit=(q,profile,metric,p,px,py,label,profileIndex)=>addChartPoint(panel,{px,py,xValue:p.x,yValue:p.y,r:q.r,g:q.g,b:q.b,de:metric.de,target:metric.target,actualXYZ:[q.X,q.Y,q.Z],q,profile:profile.name,profileIndex,label});
@@ -403,10 +450,26 @@ function draw3DChromaticityPlane(ctx,project,mode,aMax,bMax){
 function graph3DTargetVertices(profile){
  const colors={R:'#ff3030',G:'#00ed48',B:'#3485ff',W:'#ffffff',C:'#00e8e8',M:'#ff35db',Y:'#ffe52e'};
  const inputs={R:[1,0,0],G:[0,1,0],B:[0,0,1],W:[1,1,1],C:[0,1,1],M:[1,0,1],Y:[1,1,0]};
+ const gamut=TARGET_CONFIG.gamut.primaries,white=targetWhitePointForProfile(profile)||TARGET_CONFIG.whitePoint;
+ const matrix=safeTargetMatrices(TARGET_CONFIG.gamut,white).rgbToXyz;
+ const range=targetLuminanceRange(profile),min=Number.isFinite(range.min)&&range.min>=0?range.min:0,max=Number.isFinite(range.max)&&range.max>min?range.max:Math.max(1,min+1);
  return Object.entries(inputs).flatMap(([label,[r,g,b]])=>{
-  let xyz;try{xyz=targetXYZ({r,g,b},profile)}catch{return[]}
-  if(!Array.isArray(xyz)||!xyz.every(Number.isFinite))return[];
-  const [X,Y,Z]=xyz;return[{label,color:colors[label],point:{X,Y,Z},r,g,b}];
+  const rgb=[r,g,b],base=matrix?matrix.map(row=>row.reduce((sum,value,index)=>sum+value*rgb[index],0)):null;
+  let x,y,relativeY;
+  if(label==='R'||label==='G'||label==='B'){[x,y]=gamut[label];relativeY=base?.[1]??(r+g+b)/3}
+  else if(label==='W'){x=white.x;y=white.y;relativeY=base?.[1]??1}
+  else if(base&&base.every(Number.isFinite)&&Math.abs(base[0]+base[1]+base[2])>1e-12){const total=base[0]+base[1]+base[2];x=base[0]/total;y=base[1]/total;relativeY=base[1]}
+  else{
+   const active=['R','G','B'].filter((_,index)=>rgb[index]===1).map(channel=>gamut[channel]);
+   if(!active.length)return[];
+   x=active.reduce((sum,point)=>sum+point[0],0)/active.length;
+   y=active.reduce((sum,point)=>sum+point[1],0)/active.length;
+   relativeY=rgb.reduce((sum,value)=>sum+value,0)/3;
+  }
+  const Y=min+(max-min)*relativeY;
+  if(![x,y,Y].every(Number.isFinite))return[];
+  const point=y!==0?[x/y*Y,Y,(1-x-y)/y*Y]:null;
+  return[{label,color:colors[label],x,y,Y,point,r,g,b}];
  });
 }
 function draw3DGraphPanel(panel,graph){
@@ -415,7 +478,7 @@ function draw3DGraphPanel(panel,graph){
  // corresponding flat CIE plot (and its source raster) in both modes.
  const aMax=mode==='uvY'?.6:.9,bMax=mode==='uvY'?.7:.8;
  let maxY=0;forEachVisibleProfileBackToFront(profile=>{const targetMax=targetLuminanceRange(profile).max;if(Number.isFinite(targetMax))maxY=Math.max(maxY,targetMax)},panel);
- maxY=maxY>0?maxY:targetLuminanceRange(null).max||1;
+ maxY=Number.isFinite(maxY)&&maxY>0?maxY:(Number.isFinite(targetLuminanceRange(null).max)&&targetLuminanceRange(null).max>0?targetLuminanceRange(null).max:1);
  const cx=frame.x+frame.w/2+(camera.panX||0),cy=frame.y+frame.h/2+(camera.panY||0),scale=Math.min(frame.w,frame.h)*.31*(camera.zoom||1);
  const project=(a,Y,b)=>{
   const x=(a/aMax-.5)*2,y=(Y/maxY-.5)*2,z=(b/bMax-.5)*2,cyaw=Math.cos(camera.yaw),syaw=Math.sin(camera.yaw),cp=Math.cos(camera.pitch),sp=Math.sin(camera.pitch);
@@ -435,11 +498,13 @@ function draw3DGraphPanel(panel,graph){
  const targetProfiles=[];forEachVisibleProfileBackToFront((profile,index)=>targetProfiles.push({profile,index}),panel);
  const markerProfiles=targetProfiles.length?targetProfiles:[{profile:null,index:null}];
  for(const {profile,index} of markerProfiles){
-  for(const {label,color,point,r,g,b} of graph3DTargetVertices(profile)){
-   const coordinates=graph3DCoordinates(point,mode,profile,maxY);if(!coordinates)continue;
+  for(const {label,color,point,x,y,Y,r,g,b} of graph3DTargetVertices(profile)){
+   const chromaticity=mode==='uvY'?cieCoordinates(x,y,'uv'):{x,y};
+   if(!Number.isFinite(chromaticity.x)||!Number.isFinite(chromaticity.y))continue;
+   const coordinates=mode==='uvY'?{a:chromaticity.y,b:chromaticity.x,coordinateX:chromaticity.x,coordinateY:chromaticity.y,Y,actualY:Y}:{a:y,b:x,coordinateX:x,coordinateY:y,Y,actualY:Y};
    const p=project(coordinates.a,coordinates.Y,coordinates.b);
    ctx.beginPath();ctx.arc(p.x,p.y,4,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();ctx.strokeStyle='#111214';ctx.lineWidth=1;ctx.stroke();
-   addChartPoint(panel,{px:p.x,py:p.y,xValue:coordinates.a,yValue:coordinates.b,world3D:[coordinates.a,coordinates.Y,coordinates.b],coordinateX:coordinates.coordinateX,coordinateY:coordinates.coordinateY,r,g,b,de:NaN,target:[point.X,point.Y,point.Z],actualXYZ:null,graphY:coordinates.actualY,graphMode:mode,profile:profile?.name||'Target',profileIndex:index,label,vertexColor:color,targetVertex:true});
+   addChartPoint(panel,{px:p.x,py:p.y,xValue:coordinates.a,yValue:coordinates.b,world3D:[coordinates.a,coordinates.Y,coordinates.b],coordinateX:coordinates.coordinateX,coordinateY:coordinates.coordinateY,r,g,b,de:NaN,target:point,actualXYZ:null,graphY:coordinates.actualY,graphMode:mode,profile:profile?.name||'Target',profileIndex:index,label,vertexColor:color,targetVertex:true});
   }
  }
  forEachVisibleProfileBackToFront((profile,index)=>{
@@ -465,9 +530,10 @@ function renderChartPanel(panel) {
  }
  // Incomplete custom Target values cannot be recalculated. Keep the last
  // rendered chart visible until the user finishes entering valid values.
- const validTarget=targetConfigurationIsValid();
- panel.targetWarning.hidden=validTarget;
- if(!validTarget){
+ const validTarget=targetConfigurationIsValid(),validPlotGeometry=['R','G','B'].every(channel=>TARGET_CONFIG.gamut.primaries[channel].every(Number.isFinite))&&Number.isFinite(TARGET_CONFIG.whitePoint?.x)&&Number.isFinite(TARGET_CONFIG.whitePoint?.y)&&TARGET_CONFIG.whitePoint.y>0;
+ const canRenderIncompleteTarget=(panel.type==='cie'||panel.type==='graph3d')&&validPlotGeometry;
+ panel.targetWarning.hidden=validTarget||canRenderIncompleteTarget;
+ if(!validTarget&&!canRenderIncompleteTarget){
   panel.lastRenderedProfiles=new Set([...(panel.lastRenderedProfiles||[])].filter(index=>panel.selectedProfiles.has(index)));
   const count=[...panel.selectedProfiles].filter(index=>!panel.lastRenderedProfiles.has(index)).length;
   const warning=['Target incomplete',panel.lastRenderedWithProfiles?'Previous chart shown':null,count?`${count} bcs not drawn`:null].filter(Boolean).join('\n');
@@ -504,6 +570,7 @@ function zoomChartPanel(panel,x,y,deltaY) {
   camera.zoom=nextZoom;return;
  }
  if(!deltaY||!panel.plot?.w||!panel.plot?.h)return;
+ if(panel.type==='cie')panel.state.autoFit=false;
  const plot=panel.plot,v=panel.state.view,xs=v.xmax-v.xmin,ys=v.ymax-v.ymin;
  // When Patch is showing this panel's hovered node, keep that exact node
  // anchored during wheel zoom even if the wheel event lands slightly away.
@@ -519,6 +586,7 @@ function zoomChartPanel(panel,x,y,deltaY) {
 }
 function panChartPanel(panel,start,dx,dy) {
  if(panel.type==='graph3d')return;
+ if(panel.type==='cie')panel.state.autoFit=false;
  const plot=panel.plot;if(!plot?.w||!plot?.h)return;
  const x=dx/plot.w*(start.xmax-start.xmin),y=dy/plot.h*(start.ymax-start.ymin);
  panel.state.view={xmin:start.xmin-x,xmax:start.xmax-x,ymin:start.ymin+y,ymax:start.ymax+y};
@@ -657,7 +725,7 @@ function bindChartPointerEvents(panel) {
  };
  for(const name of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(name,finish);
  canvas.addEventListener('pointerleave',()=>{if(chartHover?.panel===panel)chartHover.panel=null;panel.hoveredPoint=null;hideChartHover()});
- canvas.addEventListener('dblclick',event=>{if(!panel.type)return;event.preventDefault();hideChartHover();panel.state.view=initialChartView(panel.type,panel.state);if(panel.type==='graph3d')panel.state.camera={yaw:1.15,pitch:.31,panX:0,panY:-18,zoom:1.16};renderChartPanel(panel)});
+ canvas.addEventListener('dblclick',event=>{if(!panel.type)return;event.preventDefault();hideChartHover();panel.state.view=initialChartView(panel.type,panel.state);if(panel.type==='cie')panel.state.autoFit=true;if(panel.type==='graph3d')panel.state.camera={yaw:1.15,pitch:.31,panX:0,panY:-18,zoom:1.16};renderChartPanel(panel)});
 }
 function closeChartMenus() {
  for(const panel of chartPanels){panel.menu.hidden=true;panel.menuButton.setAttribute('aria-expanded','false')}
@@ -676,7 +744,7 @@ function updateChartPanelControls(panel) {
  if(panel.type==='eotf')button(state.relative?'Relative':'Absolute',state.relative?'Absolute':'Relative',()=>{state.relative=!state.relative});
  if(panel.type==='balance')button(state.absolute?'Absolute Error':'Normalized',state.absolute?'Normalized':'Absolute Error',()=>{state.absolute=!state.absolute});
  if(panel.type==='cie'){
-  button(state.coordinateMode,state.coordinateMode==='xy'?'uv':'xy',()=>{state.coordinateMode=state.coordinateMode==='xy'?'uv':'xy';state.view=initialChartView(panel.type,state)});
+  button(state.coordinateMode,state.coordinateMode==='xy'?'uv':'xy',()=>{state.coordinateMode=state.coordinateMode==='xy'?'uv':'xy';state.autoFit=true;state.view=initialChartView(panel.type,state)});
   button(state.allPoints?'All points':'Gamut only',state.allPoints?'Gamut only':'All points',()=>{state.allPoints=!state.allPoints});
  }
  if(panel.type==='graph3d')button(state.coordinateMode,state.coordinateMode==='xyY'?'uvY':'xyY',()=>{state.coordinateMode=state.coordinateMode==='xyY'?'uvY':'xyY';state.camera={yaw:1.15,pitch:.31,panX:0,panY:-18,zoom:1.16}});

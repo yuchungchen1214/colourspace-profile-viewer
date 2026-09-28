@@ -60,10 +60,11 @@ function safeTargetMatrices(gamut,whitePoint){
   catch{return{rgbToXyz:null,xyzToRgb:null}}
 }
 function targetConfigurationIsValid(profile=null){
-  const validXy=(point,allowBoundary=false)=>Number.isFinite(point?.x)&&Number.isFinite(point?.y)&&point.x>0&&point.y>0&&(allowBoundary?point.x+point.y<=1:point.x+point.y<1);
-  if(!['R','G','B'].every(channel=>{const point=TARGET_CONFIG.gamut.primaries[channel];return Array.isArray(point)&&validXy({x:point[0],y:point[1]},true)})||!validXy(TARGET_CONFIG.whitePoint))return false;
+  const validPrimary=point=>Array.isArray(point)&&point.length===2&&point.every(Number.isFinite);
+  if(!['R','G','B'].every(channel=>validPrimary(TARGET_CONFIG.gamut.primaries[channel])))return false;
+  const white=TARGET_CONFIG.whitePoint;
+  if(!Number.isFinite(white?.x)||!Number.isFinite(white?.y)||white.y<=0)return false;
   if(TARGET_CONFIG.eotf.type==='gamma'&&(!Number.isFinite(TARGET_CONFIG.eotf.gamma)||TARGET_CONFIG.eotf.gamma<=0))return false;
-  if(!TARGET_RGB_TO_XYZ||!TARGET_XYZ_TO_RGB)return false;
   const measured=typeof profiles!=='undefined'?profiles.filter(item=>item.points?.length):[];
   let checked;
   if(profile)checked=[profile];
@@ -98,20 +99,19 @@ function selectTargetGamut(id){selectTargetSettings({gamutId:id})}
 function selectTargetWhitePoint(id){selectTargetSettings({whitePointId:id})}
 function selectTargetEotf(id){selectTargetSettings({eotfId:id})}
 function selectCustomTargetGamma(gamma){
-  if(!Number.isFinite(gamma)||gamma<0)throw new Error('Gamma must be ≥ 0');
+  if(!Number.isFinite(gamma)||gamma<=0)throw new Error('Gamma must be greater than 0');
   const customEotf=Object.freeze({type:'gamma',gamma,label:'Custom Gamma'});
   TARGET_CONFIG=Object.freeze({...TARGET_CONFIG,eotfId:'custom',eotf:customEotf,customEotf});
 }
-function validateTargetChromaticity(x,y,label){if(!Number.isFinite(x)||!Number.isFinite(y)||x<0||y<0||x>1||y>1||x+y>1)throw new Error(`Invalid ${label} xy coordinates`)}
 function selectCustomTargetPrimaries(primaries){
   const copy={};
-  for(const channel of ['R','G','B']){const pair=primaries[channel];if(!Array.isArray(pair)||pair.length!==2)throw new Error(`Invalid ${channel} primary`);validateTargetChromaticity(pair[0],pair[1],channel);copy[channel]=Object.freeze([pair[0],pair[1]])}
+  for(const channel of ['R','G','B']){const pair=primaries[channel];if(!Array.isArray(pair)||pair.length!==2||!pair.every(Number.isFinite))throw new Error(`Invalid ${channel} primary`);copy[channel]=Object.freeze([pair[0],pair[1]])}
   const customGamut=Object.freeze({name:'Custom',primaries:Object.freeze(copy)}),whitePoint=TARGET_CONFIG.whitePoint;
   const {rgbToXyz,xyzToRgb}=safeTargetMatrices(customGamut,whitePoint);
   TARGET_CONFIG=Object.freeze({...TARGET_CONFIG,gamutId:'custom',gamut:customGamut,customGamut});TARGET_RGB_TO_XYZ=rgbToXyz;TARGET_XYZ_TO_RGB=xyzToRgb;
 }
 function selectCustomTargetWhitePoint(x,y){
-  validateTargetChromaticity(x,y,'White point');
+  if(!Number.isFinite(x)||!Number.isFinite(y)||y<=0)throw new Error('White point values must be finite and y must be greater than 0');
   const customWhitePoint=Object.freeze({name:'Custom',x,y}),{rgbToXyz,xyzToRgb}=safeTargetMatrices(TARGET_CONFIG.gamut,customWhitePoint);
   TARGET_CONFIG=Object.freeze({...TARGET_CONFIG,whitePointId:'custom',whitePoint:customWhitePoint,customWhitePoint});TARGET_RGB_TO_XYZ=rgbToXyz;TARGET_XYZ_TO_RGB=xyzToRgb;
 }

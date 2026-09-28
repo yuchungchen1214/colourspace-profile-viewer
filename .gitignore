@@ -1,14 +1,10 @@
 .DS_Store
 
 # Personal or generated data — never include in the public repository.
-/bcs/
-/export/
+/local-data/
 
 # Local history and working copies; publish only the latest root release.
-/archive/
-/backup/
-/releases/
-/work/
+/history/
 /dist/
 
 # Local editor and operating-system files.
