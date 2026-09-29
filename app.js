@@ -331,7 +331,6 @@ function clearFilesProfilePreview(){
 function showProfileDetails(index){
  activeProfileIndex=index;
  renderTargetDetails();
- $('profiles').querySelectorAll('.profile-item').forEach(item=>item.classList.toggle('active',Number(item.dataset.profileIndex)===index));
 }
 function assignProfilePanel(slot,index){
  if(!Number.isInteger(index)||!profiles[index]||!isMeasuredProfile(profiles[index]))return;
@@ -780,7 +779,7 @@ async function appendProfileFiles(entries){
 function clearLoadedProfiles(){
  if(window.__viewerReadOnlyReport)return;
  $('filesStatus').hidden=true;profiles=profiles.filter(profile=>profile.builtIn);profilePanelIndices.fill(-1);previewProfileIndex=-1;previewProfileSlot=-1;collapsedProfileFolders.clear();hiddenProfiles.clear();selectedFileIndices.clear();selectionAnchor=-1;hoveredProfileIndex=-1;activeProfileIndex=0;
- if(chartHover){chartHover.pinnedData=null;chartHover.hoverData=null;hideChartHover()}
+ if(chartHover){chartHover.pinnedData=null;chartHover.hoverData=null;clearPinnedChartRing();hideChartHover()}
  resetChartsForProfiles();refresh();
 }
 function clearAllChartProfiles(){
@@ -925,7 +924,7 @@ function resetReportTargetSettings(){
  for(const kind of ['ymax','ymin'])selectTargetLuminance(kind,target.luminance[kind].mode,target.luminance[kind].value);
  targetMeasuredPreview=null;hideChartHover();refresh();
 }
-function clearPatchDetails(){if(chartHover){chartHover.pinnedData=null;chartHover.hoverData=null;hideChartHover()}}
+function clearPatchDetails(){if(chartHover){chartHover.pinnedData=null;chartHover.hoverData=null;clearPinnedChartRing();hideChartHover()}}
 const clearContextMenu=document.createElement('div');clearContextMenu.className='workspace-clear-menu';clearContextMenu.hidden=true;clearContextMenu.setAttribute('role','menu');document.body.append(clearContextMenu);
 let contextMenuHighlights=[];
 function hideClearContextMenu(){clearContextMenu.hidden=true;clearContextMenu.replaceChildren();contextMenuHighlights.forEach(element=>element.classList.remove('context-menu-scope-highlight'));contextMenuHighlights=[]}
@@ -972,6 +971,7 @@ function setDetailView(view){
  detailViewMenu.querySelectorAll('[data-detail-view]').forEach(item=>item.setAttribute('aria-checked',String(item.dataset.detailView===detailView)));
  patchDetailPanel.hidden=detailView!=='patch';
  noteDetailPanel.hidden=detailView!=='note';
+ setPinnedChartPatchHover(detailView==='patch'&&patchDetailPanel.matches(':hover'));
  if(detailView==='patch')noteEditor.hideToolbar();
 }
 targetMenuButton.addEventListener('click',()=>{
@@ -1287,7 +1287,7 @@ function clearWorkspaceContent(){
  resetTargetSettings();updateProfileChartAssignments();
  if(!targetConfigurationIsValid())for(const panel of activeChartPanels()){
   const canvas=panel.canvas,ctx=canvas.getContext('2d');
-  ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#111214';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.restore();
+  ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#111111';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.restore();
  }
 }
 function resetWorkspaceLayout(){

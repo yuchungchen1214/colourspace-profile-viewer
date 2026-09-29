@@ -163,7 +163,7 @@ function prepareChart(panel) {
  if(type==='cie')fitCieContent(panel);
  const w=canvas.clientWidth,h=canvas.clientHeight,ratio=devicePixelRatio||1;
  canvas.width=Math.round(w*ratio);canvas.height=Math.round(h*ratio);ctx.scale(ratio,ratio);
- ctx.fillStyle='#111214';ctx.fillRect(0,0,w,h);
+ ctx.fillStyle='#111111';ctx.fillRect(0,0,w,h);
  const size=Math.max(0,Math.min(w-62,h-42)),frame={x:48,y:h-30-size,w:size,h:size};
  if(type==='graph3d'){panel.plot=frame;panel.clip=frame;return{ctx,frame,clip:frame}}
  const v=state.view,bounds=chartBounds(type,state),xs=v.xmax-v.xmin,ys=v.ymax-v.ymin;
@@ -181,9 +181,9 @@ function prepareChart(panel) {
  const xt=chartTicks(Math.max(v.xmin,bounds.xmin),Math.min(v.xmax,bounds.xmax),dx);
  const yt=chartTicks(Math.max(v.ymin,bounds.ymin),Math.min(v.ymax,bounds.ymax),dy);
  ctx.save();ctx.beginPath();ctx.rect(domainClip.x,domainClip.y,domainClip.w,domainClip.h);ctx.clip();
- ctx.fillStyle='#343638';ctx.fillRect(domainClip.x,domainClip.y,domainClip.w,domainClip.h);
+ ctx.fillStyle='#363636';ctx.fillRect(domainClip.x,domainClip.y,domainClip.w,domainClip.h);
  if(type==='cie')drawCieSpectrumVectorClipped(ctx,X,Y,state.coordinateMode,bounds);
- ctx.strokeStyle='#45474b';ctx.lineWidth=1;
+ ctx.strokeStyle='#484848';ctx.lineWidth=1;
  for(const q of xt){ctx.beginPath();ctx.moveTo(X(q),top);ctx.lineTo(X(q),bottom);ctx.stroke()}
  for(const q of yt){ctx.beginPath();ctx.moveTo(left,Y(q));ctx.lineTo(right,Y(q));ctx.stroke()}
  ctx.restore();ctx.fillStyle='#aaa';ctx.font='11px system-ui';
@@ -240,6 +240,19 @@ function drawEotfPanel(panel,graph) {
   }
  },panel);
 }
+function rgbBalanceChroma(point,whitePoint){
+ const total=point.X+point.Y+point.Z;
+ return total>1e-12?[point.X/total,point.Y/total,point.Z/total]:[whitePoint.x,whitePoint.y,1-whitePoint.x-whitePoint.y];
+}
+function rgbBalanceValues(point,whitePoint,matrix,targetY,absolute){
+ const total=point.X+point.Y+point.Z;
+ if(absolute){
+  if(targetY>0)return matrix.map(row=>(row[0]*point.X+row[1]*point.Y+row[2]*point.Z)/targetY-1);
+  return total<=1e-12?[0,0,0]:[NaN,NaN,NaN];
+ }
+ const chroma=rgbBalanceChroma(point,whitePoint);
+ return matrix.map(row=>row.reduce((sum,value,index)=>sum+value*chroma[index],0)-whitePoint.y);
+}
 function drawBalancePanel(panel,graph) {
  chartLine(graph,[0,1],x=>x,()=>0,'#ddd',[4,3]);
  forEachVisibleProfileBackToFront((profile,index)=>{
@@ -247,9 +260,8 @@ function drawBalancePanel(panel,graph) {
   const grey=profile.points.filter(q=>Math.abs(q.r-q.g)<.002&&Math.abs(q.g-q.b)<.002).sort((a,b)=>a.r-b.r);
   const points=grey.map(q=>{
    if(!matrix||!whitePoint)return{q,R:NaN,G:NaN,B:NaN};
-   const sum=q.X+q.Y+q.Z,chroma=sum>1e-12?[q.X/sum,q.Y/sum,q.Z/sum]:[NaN,NaN,NaN];
-   let values=matrix.map(row=>row.reduce((n,v,i)=>n+v*chroma[i],0)-whitePoint.y);
-   if(panel.state.absolute){const {min,max}=targetLuminanceRange(profile),targetY=min+(max-min)*targetEncodedToLinear(q.r,min,max);values=targetY>0?matrix.map(row=>(row[0]*q.X+row[1]*q.Y+row[2]*q.Z)/targetY-1):[NaN,NaN,NaN]}
+   const {min,max}=targetLuminanceRange(profile),targetY=min+(max-min)*targetEncodedToLinear(q.r,min,max);
+   const values=rgbBalanceValues(q,whitePoint,matrix,targetY,panel.state.absolute);
    return {q,R:values[0],G:values[1],B:values[2]};
   }).filter(q=>[q.R,q.G,q.B].every(Number.isFinite));
   const channels=[['R','#f66'],['G','#6d6'],['B','#69f']];
@@ -349,7 +361,7 @@ function drawDeltaEPanel(panel,graph) {
   const series=panel.state.distribution?deltaEDistributionCounts(profile).map((count,i)=>({
    xValue:i*.5,yValue:profile.points.length?count/profile.points.length:0,
    count,total:profile.points.length,binStart:i*.5,binEnd:i===20?Infinity:(i+1)*.5
-  })):profile.points.filter(q=>Math.abs(q.r-q.g)<.002&&Math.abs(q.g-q.b)<.002&&q.X+q.Y+q.Z>1e-12)
+  })):profile.points.filter(q=>Math.abs(q.r-q.g)<.002&&Math.abs(q.g-q.b)<.002)
    .map(q=>{const metric=cieMetrics(q,profile);return{xValue:q.r,yValue:metric.de,r:q.r,g:q.g,b:q.b,target:metric.target,actualXYZ:[q.X,q.Y,q.Z],q}}).sort((a,b)=>a.xValue-b.xValue);
   chartLine(graph,series,p=>p.xValue,p=>p.yValue,color);
   for(const point of series){
@@ -525,8 +537,8 @@ function renderChartPanel(panel) {
   panel.targetWarning.hidden=true;panel.points=[];panel.plot=null;panel.lastRenderedWithProfiles=false;panel.lastRenderedProfiles=new Set();
   const {canvas}=panel,ratio=devicePixelRatio||1,width=canvas.clientWidth,height=canvas.clientHeight;
   canvas.width=Math.round(width*ratio);canvas.height=Math.round(height*ratio);
-  const ctx=canvas.getContext('2d');ctx.scale(ratio,ratio);ctx.fillStyle='#111214';ctx.fillRect(0,0,width,height);
-  return;
+  const ctx=canvas.getContext('2d');ctx.scale(ratio,ratio);ctx.fillStyle='#111111';ctx.fillRect(0,0,width,height);
+  updatePinnedChartRing(panel);return;
  }
  // Incomplete custom Target values cannot be recalculated. Keep the last
  // rendered chart visible until the user finishes entering valid values.
@@ -548,6 +560,7 @@ function renderChartPanel(panel) {
  }finally{graph.ctx.restore()}
  panel.lastRenderedWithProfiles=panel.selectedProfiles.size>0;
  panel.lastRenderedProfiles=new Set(panel.selectedProfiles);
+ updatePinnedChartRing(panel);
 }
 function render() {hideChartHover();activeChartPanels().forEach(renderChartPanel)}
 
@@ -595,8 +608,40 @@ function chartPointerPosition(panel,event) {
  const r=panel.canvas.getBoundingClientRect();
  return {x:(event.clientX-r.left)*panel.canvas.clientWidth/r.width,y:(event.clientY-r.top)*panel.canvas.clientHeight/r.height};
 }
-function paintPatch(data){if(!chartHover)return;for(const key of ['name','rgb','targetXYZ','targetYxy','actualXYZ','actualYxy','extra']){const field=chartHover.fields[key];field.textContent=data?.[key]||'';field.title=data?.[key]||''}chartHover.fields.nameDot.hidden=!data?.name;chartHover.fields.nameDot.style.setProperty('--patch-color',data?.color||'#aaa')}
-function hideChartHover() {clearTargetMeasuredPreview('chart');clearLocatedFile('chart');if(chartHover){if(chartHover.panel)chartHover.panel.hoveredPoint=null;chartHover.panel=null;for(const panel of chartPanels)if(panel.hoverRing)panel.hoverRing.hidden=true;chartHover.ring.hidden=true;chartHover.hoverData=null;paintPatch(chartHover.pinnedData)}}
+function paintPatch(data){if(!chartHover)return;for(const key of ['name','targetXYZ','targetYxy','actualXYZ','actualYxy','extra']){const field=chartHover.fields[key];field.textContent=data?.[key]||'';field.title=data?.[key]||''}const rgbField=chartHover.fields.rgb;rgbField.replaceChildren();rgbField.title=data?.rgb||'';rgbField.setAttribute('aria-label',data?.rgb||'');if(data?.rgb){const label=document.createElement('span');label.textContent='RGB:';rgbField.append(label);if(data.rgbColor){const swatch=document.createElement('span');swatch.className='patch-rgb-swatch';swatch.style.backgroundColor=data.rgbColor;swatch.setAttribute('aria-hidden','true');rgbField.append(swatch)}const values=document.createElement('span');values.textContent=data.rgb.replace(/^RGB:\s*/, '');rgbField.append(values)}chartHover.fields.nameDot.hidden=!data?.name;chartHover.fields.nameDot.style.setProperty('--patch-color',data?.color||'#aaa')}
+function pinnedPointMatches(candidate,pinned){
+ const point=pinned.point;
+ if(point.q)return candidate.profileIndex===point.profileIndex&&candidate.q===point.q&&candidate.channel===point.channel;
+ if(point.targetVertex)return candidate.targetVertex&&candidate.profileIndex===point.profileIndex&&candidate.label===point.label;
+ if(point.targetWhite)return candidate.targetWhite&&candidate.profileIndex===point.profileIndex;
+ return candidate.profileIndex===point.profileIndex&&candidate.channel===point.channel&&candidate.xValue===point.xValue&&candidate.yValue===point.yValue&&candidate.binStart===point.binStart;
+}
+function updatePinnedChartRing(){
+ const pinned=chartHover?.pinnedPoint;
+ for(const panel of chartPanels){
+  const rings=panel.pinnedRings||(panel.pinnedRings=[]);
+  let points=[];
+  if(pinned&&chartHover.patchHovered&&panel.type&&!panel.article.hidden){
+   points=panel===pinned.panel
+    ?panel.points.filter(candidate=>pinnedPointMatches(candidate,pinned))
+    :correspondingChartPoints(pinned.panel,pinned.point,panel);
+  }
+  while(rings.length<points.length){const ring=document.createElement('div');ring.className='chart-hover-ring';ring.hidden=true;document.body.append(ring);rings.push(ring)}
+  const bounds=panel.canvas.getBoundingClientRect();
+  rings.forEach((ring,index)=>{const point=points[index];if(!point){ring.hidden=true;return}ring.style.left=(bounds.left+point.px*bounds.width/panel.canvas.clientWidth)+'px';ring.style.top=(bounds.top+point.py*bounds.height/panel.canvas.clientHeight)+'px';ring.hidden=false});
+ }
+}
+function clearPinnedChartRing(){if(chartHover){chartHover.pinnedPoint=null;chartPanels.forEach(panel=>panel.pinnedRings?.forEach(ring=>ring.hidden=true))}}
+function setPinnedChartPatchHover(hovered){if(!chartHover)return;chartHover.patchHovered=Boolean(hovered);updatePinnedChartRing()}
+function showChartClickFeedback(panel,point){
+ const ring=chartHover?.clickRing;if(!ring)return;
+ if(chartHover.clickFeedbackTimer)clearTimeout(chartHover.clickFeedbackTimer);
+ const bounds=panel.canvas.getBoundingClientRect();
+ ring.style.left=(bounds.left+point.px*bounds.width/panel.canvas.clientWidth)+'px';
+ ring.style.top=(bounds.top+point.py*bounds.height/panel.canvas.clientHeight)+'px';ring.hidden=false;
+ chartHover.clickFeedbackTimer=setTimeout(()=>{ring.hidden=true;chartHover.clickFeedbackTimer=null},500);
+}
+function hideChartHover() {clearTargetMeasuredPreview('chart');clearLocatedFile('chart');if(chartHover){if(chartHover.panel)chartHover.panel.hoveredPoint=null;chartHover.panel=null;for(const panel of chartPanels)panel.hoverRings?.forEach(ring=>ring.hidden=true);chartHover.ring.hidden=true;chartHover.hoverData=null;paintPatch(chartHover.pinnedData)}}
 function closeChartPointMenu(){if(chartPointMenu)chartPointMenu.hidden=true}
 function showChartPointMenu(panel,event){
  if(window.__viewerReadOnlyReport)return;
@@ -637,8 +682,8 @@ function chartPointPatch(panel,point){
   return Number.isFinite(total)&&Math.abs(total)>1e-12?[y,x/total,y/total].map(n).join(', '):'N/A';
  };
  const xyz=value=>Array.isArray(value)?value.map(n).join(', '):'N/A';
- if(point.targetVertex){const rgb=Number.isFinite(point.r)&&Number.isFinite(point.g)&&Number.isFinite(point.b)?[point.r,point.g,point.b].map(value=>Math.round(value*255)).join(', '):'N/A';return{name:`Target ${point.label}`,color:point.vertexColor||'#aaa',rgb:'RGB: '+rgb,targetXYZ:'Target XYZ: '+xyz(point.target),targetYxy:'Target Yxy: '+yxy(point.target),actualXYZ:'Actual XYZ: N/A',actualYxy:'Actual Yxy: N/A',extra:chartPointText(panel,point)}}
- if(point.targetWhite)return{name:point.profile||'Target',color:Number.isInteger(point.profileIndex)&&point.profileIndex>=0?profileColor(point.profileIndex):'#aaa',rgb:'RGB: N/A',targetXYZ:'Target XYZ: '+xyz(point.target),targetYxy:'Target Yxy: '+yxy(point.target),actualXYZ:'Actual XYZ: N/A',actualYxy:'Actual Yxy: N/A',extra:chartPointText(panel,point)};
+ if(point.targetVertex){const rgbValues=[point.r,point.g,point.b],rgb=rgbValues.every(Number.isFinite)?rgbValues.map(value=>Math.round(value*255)).join(', '):'N/A';return{name:`Target ${point.label}`,color:point.vertexColor||'#aaa',rgb:'RGB: '+rgb,rgbColor:rgbPatchColor(rgbValues),targetXYZ:'Target XYZ: '+xyz(point.target),targetYxy:'Target Yxy: '+yxy(point.target),actualXYZ:'Actual XYZ: N/A',actualYxy:'Actual Yxy: N/A',extra:chartPointText(panel,point)}}
+ if(point.targetWhite)return{name:point.profile||'Target',color:Number.isInteger(point.profileIndex)&&point.profileIndex>=0?profileColor(point.profileIndex):'#aaa',rgb:'RGB: N/A',rgbColor:null,targetXYZ:'Target XYZ: '+xyz(point.target),targetYxy:'Target Yxy: '+yxy(point.target),actualXYZ:'Actual XYZ: N/A',actualYxy:'Actual Yxy: N/A',extra:chartPointText(panel,point)};
  const profile=profiles[point.profileIndex],q=point.q;
  const rgb=Number.isFinite(point.r)&&Number.isFinite(point.g)&&Number.isFinite(point.b)?[point.r,point.g,point.b]:q?[q.r,q.g,q.b]:null;
  let actual=point.actualXYZ||(q?[q.X,q.Y,q.Z]:null),target=point.target;
@@ -647,7 +692,22 @@ function chartPointPatch(panel,point){
   if(q&&profile){const {min,max}=targetLuminanceRange(profile),y=min+(max-min)*targetEncodedToLinear(q.r,min,max);target=targetNeutralXYZ(y,profile)}
  }
  const rgbText=rgb?rgb.map(value=>Math.round(value*255)).join(', '):'N/A';
- return{name:point.profile||'N/A',color:profileColor(point.profileIndex),rgb:'RGB: '+rgbText,targetXYZ:'Target XYZ: '+xyz(target),targetYxy:'Target Yxy: '+yxy(target),actualXYZ:'Actual XYZ: '+xyz(actual),actualYxy:'Actual Yxy: '+yxy(actual),extra:chartPointText(panel,point)}
+ const targetWhite=panel.type==='balance'&&q&&q.r<=1e-6&&q.X+q.Y+q.Z<=1e-12?targetWhitePointForProfile(profile):null;
+ let targetYxy=yxy(target);
+ if(targetWhite&&Array.isArray(target)&&target.every(value=>Math.abs(value)<=1e-12))targetYxy=[0,targetWhite.x,targetWhite.y].map(n).join(', ');
+ const actualYxy=targetWhite&&Array.isArray(actual)&&actual.every(value=>Math.abs(value)<=1e-12)?[0,0,0].map(n).join(', '):yxy(actual);
+ return{name:point.profile||'N/A',color:profileColor(point.profileIndex),rgb:'RGB: '+rgbText,rgbColor:rgbPatchColor(rgb),targetXYZ:'Target XYZ: '+xyz(target),targetYxy:'Target Yxy: '+targetYxy,actualXYZ:'Actual XYZ: '+xyz(actual),actualYxy:'Actual Yxy: '+actualYxy,extra:chartPointText(panel,point)}
+}
+function rgbPatchColor(values){
+ if(!Array.isArray(values)||values.length!==3||!values.every(Number.isFinite))return null;
+ return '#'+values.map(value=>Math.max(0,Math.min(255,Math.round(value*255))).toString(16).padStart(2,'0')).join('');
+}
+function correspondingChartPoints(sourcePanel,sourcePoint,candidatePanel){
+ if(candidatePanel===sourcePanel)return[sourcePoint];
+ if(!sourcePoint.q)return[];
+ const matches=candidatePanel.points.filter(candidate=>candidate.profileIndex===sourcePoint.profileIndex&&candidate.q===sourcePoint.q);
+ if(sourcePoint.channel&&['eotf','balance'].includes(candidatePanel.type))return matches.filter(candidate=>candidate.channel===sourcePoint.channel);
+ return matches;
 }
 function showChartHover(panel,event) {
  if(panel.drag){hideChartHover();return}
@@ -658,11 +718,12 @@ function showChartHover(panel,event) {
  if(!point.targetVertex){previewTargetMeasured(point.profileIndex,'chart');locateFile(point.profileIndex,'chart')}
  for(const candidatePanel of chartPanels){
   if(!candidatePanel.hoverRing)continue;
-  const matches=candidatePanel===panel?[point]:point.q?candidatePanel.points.filter(candidate=>candidate.profileIndex===point.profileIndex&&candidate.q===point.q):[];
-  const match=matches.find(candidate=>!candidatePanel.article.hidden&&candidatePanel.type);
-  if(!match){candidatePanel.hoverRing.hidden=true;continue}
-  const bounds=candidatePanel.canvas.getBoundingClientRect(),ring=candidatePanel.hoverRing;
-  ring.style.left=(bounds.left+match.px*bounds.width/candidatePanel.canvas.clientWidth)+'px';ring.style.top=(bounds.top+match.py*bounds.height/candidatePanel.canvas.clientHeight)+'px';ring.hidden=false;
+  const matches=correspondingChartPoints(panel,point,candidatePanel);
+  const visibleMatches=candidatePanel.article.hidden||!candidatePanel.type?[]:matches;
+  const rings=candidatePanel.hoverRings||(candidatePanel.hoverRings=[candidatePanel.hoverRing]);
+  while(rings.length<visibleMatches.length){const extra=document.createElement('div');extra.className='chart-hover-ring';extra.hidden=true;document.body.append(extra);rings.push(extra)}
+  const bounds=candidatePanel.canvas.getBoundingClientRect();
+  rings.forEach((ring,index)=>{const match=visibleMatches[index];if(!match){ring.hidden=true;return}ring.style.left=(bounds.left+match.px*bounds.width/candidatePanel.canvas.clientWidth)+'px';ring.style.top=(bounds.top+match.py*bounds.height/candidatePanel.canvas.clientHeight)+'px';ring.hidden=false});
  }
  chartHover.ring.hidden=true;
  chartHover.hoverData=chartPointPatch(panel,point);paintPatch(chartHover.hoverData);
@@ -719,8 +780,10 @@ function bindChartPointerEvents(panel) {
   if(canvas.hasPointerCapture(event.pointerId))canvas.releasePointerCapture(event.pointerId);
   if(wasClick){
    const point=nearestChartPoint(panel,p.x,p.y);
-   if(point){chartHover.pinnedData=chartPointPatch(panel,point);chartHover.hoverData=null}
+   if(point){chartHover.pinnedData=chartPointPatch(panel,point);chartHover.pinnedPoint={panel,point};chartHover.hoverData=null}
    hideChartHover();
+   if(point)showChartClickFeedback(panel,point);
+   updatePinnedChartRing(panel);
   }else hideChartHover();
  };
  for(const name of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(name,finish);
@@ -785,7 +848,9 @@ function updateProfileChartAssignments() {
 function initializeChartPanels() {
  const host=$('chartSlots');host.replaceChildren();
  const ring=document.createElement('div');
- ring.className='chart-hover-ring';ring.hidden=true;document.body.append(ring);chartHover={ring,fields:{name:$('patchName'),nameDot:$('patchNameDot'),rgb:$('patchRgb'),targetXYZ:$('patchTargetXYZ'),targetYxy:$('patchTargetYxy'),actualXYZ:$('patchActualXYZ'),actualYxy:$('patchActualYxy'),extra:$('patchExtra')},hoverData:null,pinnedData:null,panel:null};
+ ring.className='chart-hover-ring';ring.hidden=true;document.body.append(ring);const clickRing=document.createElement('div');clickRing.className='chart-hover-ring';clickRing.hidden=true;document.body.append(clickRing);chartHover={ring,clickRing,clickFeedbackTimer:null,fields:{name:$('patchName'),nameDot:$('patchNameDot'),rgb:$('patchRgb'),targetXYZ:$('patchTargetXYZ'),targetYxy:$('patchTargetYxy'),actualXYZ:$('patchActualXYZ'),actualYxy:$('patchActualYxy'),extra:$('patchExtra')},hoverData:null,pinnedData:null,pinnedPoint:null,panel:null,patchHovered:false};
+ const patchPanel=document.querySelector('.detail-panel .patch-panel');patchPanel.addEventListener('pointerenter',()=>setPinnedChartPatchHover(true));patchPanel.addEventListener('pointerleave',()=>setPinnedChartPatchHover(false));
+ window.addEventListener('resize',()=>updatePinnedChartRing());window.addEventListener('scroll',()=>updatePinnedChartRing(),true);
  const pointMenu=document.createElement('div'),hidePointButton=document.createElement('button');
  pointMenu.className='chart-point-menu';pointMenu.hidden=true;hidePointButton.type='button';pointMenu.append(hidePointButton);document.body.append(pointMenu);chartPointMenu=pointMenu;
  Array.from({length:16},(_,index)=>({definition:Math.floor(index/4)<2&&index%4<2?chartDefinitions.find(item=>item.id===initialChartTypes[Math.floor(index/4)*2+index%4]):null,index})).forEach(({definition,index})=>{
