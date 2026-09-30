@@ -161,13 +161,23 @@ function clearTargetMeasuredPreview(source){
  if(targetMeasuredPreview?.source!==source)return;
  targetMeasuredPreview=null;updateTargetMeasuredFields();
 }
+function averageProfileEotf(p){
+ const grey=p.points.filter(q=>[q.r,q.g,q.b,q.Y].every(Number.isFinite)&&Math.abs(q.r-q.g)<.002&&Math.abs(q.g-q.b)<.002).sort((a,b)=>a.r-b.r);
+ if(grey.length<3)return NaN;
+ const black=grey.find(q=>q.r<=1e-6),white=[...grey].reverse().find(q=>q.r>=1-1e-6);
+ const inputMin=black?.r??0,inputMax=white?.r??1,blackY=black?.Y??0,whiteY=white?.Y??Math.max(...grey.map(q=>q.Y)),inputSpan=inputMax-inputMin,lumaSpan=whiteY-blackY;
+ if(!(inputSpan>0&&lumaSpan>0))return NaN;
+ const gammas=grey.map(q=>{
+  const input=(q.r-inputMin)/inputSpan,luma=(q.Y-blackY)/lumaSpan;
+  return input>0&&input<1&&luma>0&&luma<1?Math.log(luma)/Math.log(input):NaN;
+ }).filter(Number.isFinite);
+ return gammas.length?gammas.reduce((sum,gamma)=>sum+gamma,0)/gammas.length:NaN;
+}
 function profileSummary(p){
  const cached=profileSummaryCache.get(p);
  if(cached?.target===TARGET_CONFIG)return cached.summary;
  const values=p.points.map(q=>cieMetrics(q,p).de).filter(Number.isFinite),mean=values.length?values.reduce((a,b)=>a+b,0)/values.length:NaN,max=values.length?Math.max(...values):NaN;
- const grey=p.points.filter(q=>Math.abs(q.r-q.g)<.002&&Math.abs(q.g-q.b)<.002).sort((a,b)=>a.r-b.r),measuredY=grey.map(q=>q.Y).filter(Number.isFinite),blackPatch=grey.find(q=>q.r<=1e-6&&q.g<=1e-6&&q.b<=1e-6),min=blackPatch?.Y??NaN,maxY=measuredY.length?Math.max(...measuredY):NaN,black=blackPatch?.Y??0,white=grey.find(q=>q.r>=1-1e-6)?.Y??maxY,span=white-black;
- const fit=grey.filter(q=>q.r>0&&q.r<1&&span>0).map(q=>({x:Math.log(q.r),y:(q.Y-black)/span})).filter(q=>q.y>0&&q.y<1.05).map(q=>({x:q.x,y:Math.log(q.y)}));
- const mx=fit.length?fit.reduce((s,q)=>s+q.x,0)/fit.length:NaN,my=fit.length?fit.reduce((s,q)=>s+q.y,0)/fit.length:NaN,den=fit.reduce((s,q)=>s+(q.x-mx)**2,0),gamma=fit.length>1&&den>0?fit.reduce((s,q)=>s+(q.x-mx)*(q.y-my),0)/den:NaN;
+ const grey=p.points.filter(q=>Math.abs(q.r-q.g)<.002&&Math.abs(q.g-q.b)<.002).sort((a,b)=>a.r-b.r),measuredY=grey.map(q=>q.Y).filter(Number.isFinite),blackPatch=grey.find(q=>q.r<=1e-6&&q.g<=1e-6&&q.b<=1e-6),min=blackPatch?.Y??NaN,maxY=measuredY.length?Math.max(...measuredY):NaN,gamma=averageProfileEotf(p);
  const summary={min,max:maxY,cr:min>0?maxY/min:NaN,mean,maxDe:max,gamma,count:values.length};
  profileSummaryCache.set(p,{target:TARGET_CONFIG,summary});return summary;
 }
@@ -176,7 +186,7 @@ function renderTargetDetails(){
  $('targetGamut').value=TARGET_CONFIG.gamutId;
  $('targetWhitePoint').value=TARGET_CONFIG.whitePointId;
  $('targetEotf').value=TARGET_CONFIG.eotfId;
- const gammaInput=$('targetGammaValue');gammaInput.disabled=false;gammaInput.step=TARGET_CONFIG.eotfId==='custom'?'any':'0.01';if(gammaInput!==document.activeElement&&gammaInput.validity.valid)gammaInput.value=Number.isFinite(eotf.gamma)?(TARGET_CONFIG.eotfId==='custom'?String(eotf.gamma):Number(eotf.gamma).toFixed(TARGET_CONFIG.eotfId==='bt1886'?3:2)):'';gammaInput.title='Edit Gamma; changes EOTF to Custom';
+ const gammaInput=$('targetGammaValue');gammaInput.disabled=false;gammaInput.step=TARGET_CONFIG.eotfId==='custom'?'any':'0.01';if(gammaInput!==document.activeElement)gammaInput.value=Number.isFinite(eotf.gamma)?(TARGET_CONFIG.eotfId==='custom'?String(eotf.gamma):Number(eotf.gamma).toFixed(TARGET_CONFIG.eotfId==='bt1886'?3:2)):'';gammaInput.title='Edit Gamma; changes EOTF to Custom';
  const coordinateInput=(value,label)=>{const input=document.createElement('input');input.type='number';input.step='any';input.value=Number(value).toFixed(4);input.disabled=false;input.setAttribute('aria-label',label);input.title=`Edit ${label}; changes setting to Custom`;input.addEventListener('input',()=>input.setCustomValidity(''));return input};
  const primaries=$('targetPrimaries');
  const coordinateFields=(x,y,xLabel,yLabel)=>{const fields=document.createElement('div');fields.className='target-coordinate-fields';fields.append(coordinateInput(x,xLabel),document.createTextNode(','),coordinateInput(y,yLabel));return fields};
@@ -725,6 +735,7 @@ $('targetWhitePoint').onchange=event=>{
 };
 $('targetEotf').onchange=event=>{
  selectTargetEotf(event.target.value);
+ $('targetGammaValue').setCustomValidity('');
  hideChartHover();
  refresh();
 };
@@ -1473,6 +1484,7 @@ const targetDropPanel=document.querySelector('.target-summary');
 function applyTargetPreset(preset){
  selectTargetSettings({gamutId:preset.gamutId,whitePointId:preset.whitePointId,eotfId:preset.eotfId});
  if(Number.isFinite(preset.gamma))selectCustomTargetGamma(preset.gamma);
+ $('targetGammaValue').setCustomValidity('');
  hideChartHover();refresh();
 }
 const targetImportDialog=document.createElement('dialog');targetImportDialog.className='target-import-dialog';

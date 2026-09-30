@@ -20,6 +20,21 @@ test('release metadata is consistent', () => {
   assert.match(read('index.html'), /id="aboutDialog"/);
 });
 
+test('Profile and imported Target EOTF use the arithmetic mean of per-level gamma values', () => {
+  const app = read('app.js');
+  const start = app.indexOf('function averageProfileEotf(');
+  const end = app.indexOf('\nfunction profileSummary(', start);
+  assert.ok(start >= 0 && end > start);
+  const averageProfileEotf = vm.runInNewContext(`${app.slice(start, end)}; averageProfileEotf`);
+  const xml = read('local-data/profiles/demo/Demo 2.bcs');
+  const points = [...xml.matchAll(/<patch\b[\s\S]*?<red>([\d.eE+-]+)<\/red>[\s\S]*?<green>([\d.eE+-]+)<\/green>[\s\S]*?<blue>([\d.eE+-]+)<\/blue>[\s\S]*?<Y>([\d.eE+-]+)<\/Y>[\s\S]*?<\/patch>/g)]
+    .map(match => ({r:Number(match[1]),g:Number(match[2]),b:Number(match[3]),Y:Number(match[4])}));
+  assert.ok(Math.abs(averageProfileEotf({points}) - 2.2599) < 0.00005);
+  assert.match(app, /gamma=averageProfileEotf\(p\)/);
+  assert.match(app, /gamma=profileSummary\(profile\)\.gamma/);
+  assert.match(app, /eotf:\{value:gamma,valid:Number\.isFinite\(gamma\)&&gamma>0/);
+});
+
 test('volumetric zoom limits are 0.7x through 100x', () => {
   assert.match(read('charts.js'), /Math\.max\(\.7,Math\.min\(100,/);
   assert.match(read('app.js'), /Math\.max\(\.7,Math\.min\(100,/);
