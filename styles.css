@@ -30,6 +30,8 @@ input::placeholder,textarea::placeholder{color:#a5a8ae}
 .target-import-options label:has(input:disabled){opacity:.5;cursor:default}
 .target-import-options input{margin-top:3px}
 .target-import-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+.target-preview-badge{margin-left:2px;padding:1px 6px;border:1px solid #626262;border-radius:5px;color:#aaa;font-size:.72em;font-weight:400;white-space:nowrap}
+.target-preset-item.previewing{outline:1px solid #999;background:#484848}
 .chart-target-warning{position:absolute;z-index:5;top:48px;left:18px;right:18px;padding:4px 6px;border-radius:4px;background:rgba(32,27,18,.9);color:#f2c56e;text-align:center;font-size:12px;line-height:1.3;white-space:pre-line;pointer-events:none}
 .chart-target-warning[hidden]{display:none}
 .chart-slot.drop-active{outline:2px dashed #7088ff;outline-offset:-2px}

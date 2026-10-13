@@ -437,6 +437,7 @@ function updateChartLegend(){
  $('chartLegend').innerHTML=`<span class="channel-key">${eotfBalance}<span class="cie-key">${mono?cieShape:activeChartPanels().some(panel=>panel.type==='cie'&&!panel.state.allPoints)?cieColor+' · Gamut only: '+cieShape:cieColor}</span></span>`;
 }
 function refresh(){
+ if(targetPresetPreview)clearTargetPresetPreview(null,false);
  renderTargetDetails();
  render();
  const list=$('profiles');list.replaceChildren();renderProfileTree(list);
@@ -494,7 +495,7 @@ function renderProfileTree(list){
     const indices=[...selectedFileIndices].sort((a,b)=>a-b);
     event.dataTransfer.effectAllowed='copy';event.dataTransfer.setData('text/plain',String(index));event.dataTransfer.setData('application/x-bcs-profile-indices',JSON.stringify(indices));event.dataTransfer.setData('application/x-bcs-profile-index',String(index));item.classList.add('dragging')
    });
-   item.addEventListener('dragend',()=>item.classList.remove('dragging'));
+   item.addEventListener('dragend',()=>{item.classList.remove('dragging');if(kind==='spaces')clearTargetPresetPreview(item)});
    const toggle=document.createElement(kind==='spaces'?'span':'button');
    toggle.className=kind==='spaces'?'dot profile-space-dot':'dot profile-toggle'+(profileVisible(index)?'':' off');toggle.style.setProperty('--profile-color',kind==='spaces'?'#999':profileColor(index));
    if(kind==='profiles'){
@@ -509,8 +510,17 @@ function renderProfileTree(list){
    }
    const name=document.createElement('span');name.textContent=filename;
    const assigned=activeChartPanels().filter(panel=>panel.selectedProfiles.has(index)).length;item.classList.toggle('in-chart',assigned>0);
-   item.title=(profile.flatSource?profile.name:profile.sourcePath)+(kind==='spaces'?' · Drag onto Target to apply colour space settings':assigned?` · Displayed in ${assigned} chart${assigned===1?'':'s'}`:' · Drag onto a chart to display');item.append(toggle,name);
-   item.addEventListener('mouseenter',()=>{setHoveredProfile(index);previewProfileFromFiles(index)});item.addEventListener('focusin',()=>showProfileDetails(index));container.append(item);
+   item.title=(profile.flatSource?profile.name:profile.sourcePath)+(kind==='spaces'?' · Hover to preview; drag onto Target or double-click to apply colour space settings':assigned?` · Displayed in ${assigned} chart${assigned===1?'':'s'}`:' · Drag onto a chart to display');item.append(toggle,name);
+   if(kind==='spaces'){
+    item.addEventListener('mouseenter',()=>previewImportedTargetSpace(profile,item));
+    item.addEventListener('mouseleave',()=>{if(document.activeElement!==item)clearTargetPresetPreview(item)});
+    item.addEventListener('focusin',()=>{showProfileDetails(index);previewImportedTargetSpace(profile,item)});
+    item.addEventListener('focusout',()=>{if(!item.matches(':hover'))clearTargetPresetPreview(item)});
+   }else{
+    item.addEventListener('mouseenter',()=>{setHoveredProfile(index);previewProfileFromFiles(index)});
+    item.addEventListener('focusin',()=>showProfileDetails(index));
+   }
+   container.append(item);
   }
   for(const folder of [...node.folders.values()].sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}))){
    const group=document.createElement('div');group.className='profile-folder';
@@ -545,9 +555,13 @@ function renderProfileTree(list){
   }
   if(kind==='spaces')for(const preset of targetPresets){
    const item=document.createElement('div');item.className='target-preset-item';item.tabIndex=0;item.draggable=true;item.textContent=preset.label;
-   item.title='Built-in color space · Drag onto Target or double-click to apply';item.setAttribute('aria-label',`${preset.label} built-in color space; drag onto Target or double-click to apply`);
+   item.title='Built-in color space · Hover to preview; drag onto Target or double-click to apply';item.setAttribute('aria-label',`${preset.label} built-in color space; hover to preview, drag onto Target or double-click to apply`);
+   item.addEventListener('mouseenter',()=>previewTargetPreset(preset,item));
+   item.addEventListener('mouseleave',()=>{if(document.activeElement!==item)clearTargetPresetPreview(item)});
+   item.addEventListener('focus',()=>previewTargetPreset(preset,item));
+   item.addEventListener('blur',()=>{if(!item.matches(':hover'))clearTargetPresetPreview(item)});
    item.addEventListener('dragstart',event=>{event.dataTransfer.effectAllowed='copy';event.dataTransfer.setData('application/x-bcs-target-preset',preset.label);item.classList.add('dragging')});
-   item.addEventListener('dragend',()=>item.classList.remove('dragging'));
+   item.addEventListener('dragend',()=>{item.classList.remove('dragging');clearTargetPresetPreview(item)});
    item.addEventListener('dblclick',event=>{event.preventDefault();applyTargetPreset(preset)});
    body.append(item);
   }
@@ -1481,7 +1495,41 @@ document.addEventListener('contextmenu',event=>{
  event.preventDefault();
 });
 const targetDropPanel=document.querySelector('.target-summary');
+const targetPreviewBadge=document.createElement('span');targetPreviewBadge.className='target-preview-badge';targetPreviewBadge.textContent='';targetPreviewBadge.hidden=true;targetPreviewBadge.setAttribute('role','status');targetPreviewBadge.setAttribute('aria-live','polite');
+document.querySelector('.target-summary .panel-heading h2').after(targetPreviewBadge);
+let targetPresetPreview=null;
+function renderTargetPreview(){renderTargetDetails();render();renderProfilePanels()}
+function clearTargetPresetPreview(item=null,redraw=true){
+ const preview=targetPresetPreview;if(!preview||item&&preview.item!==item)return;
+ TARGET_CONFIG=preview.config;TARGET_RGB_TO_XYZ=preview.rgbToXyz;TARGET_XYZ_TO_RGB=preview.xyzToRgb;
+ preview.item.classList.remove('previewing');targetPreviewBadge.hidden=true;targetPreviewBadge.textContent='';targetPresetPreview=null;
+ if(redraw)renderTargetPreview();
+}
+function beginTargetPreview(item,label,apply){
+ if(window.__viewerReadOnlyReport||targetPresetPreview?.item===item)return;
+ const base=targetPresetPreview||{config:TARGET_CONFIG,rgbToXyz:TARGET_RGB_TO_XYZ,xyzToRgb:TARGET_XYZ_TO_RGB};
+ if(targetPresetPreview){targetPresetPreview.item.classList.remove('previewing');TARGET_CONFIG=base.config;TARGET_RGB_TO_XYZ=base.rgbToXyz;TARGET_XYZ_TO_RGB=base.xyzToRgb}
+ targetPresetPreview={...base,item};item.classList.add('previewing');targetPreviewBadge.textContent=`Preview · ${label}`;targetPreviewBadge.hidden=false;
+ try{apply()}catch{clearTargetPresetPreview(item,false);renderTargetPreview();return}
+ renderTargetPreview();
+}
+function previewTargetPreset(preset,item){
+ beginTargetPreview(item,preset.label,()=>{
+ selectTargetSettings({gamutId:preset.gamutId,whitePointId:preset.whitePointId,eotfId:preset.eotfId});
+ if(Number.isFinite(preset.gamma))selectCustomTargetGamma(preset.gamma);
+ });
+}
+function previewImportedTargetSpace(profile,item){
+ const head=profile?.headTarget;if(!head)return;
+ beginTargetPreview(item,profile.name,()=>{
+  const primaries=head.primaries||{},validXy=pair=>Array.isArray(pair)&&pair.length===2&&pair.every(Number.isFinite)&&pair[1]>0&&pair[0]+pair[1]<=1;
+  if(['R','G','B'].every(channel=>validXy(primaries[channel])))selectCustomTargetPrimaries(primaries);
+  if(validXy(head.whitePoint))selectCustomTargetWhitePoint(...head.whitePoint);
+  if(Number.isFinite(head.gamma)&&head.gamma>0)selectCustomTargetGamma(head.gamma);
+ });
+}
 function applyTargetPreset(preset){
+ clearTargetPresetPreview(null,false);
  selectTargetSettings({gamutId:preset.gamutId,whitePointId:preset.whitePointId,eotfId:preset.eotfId});
  if(Number.isFinite(preset.gamma))selectCustomTargetGamma(preset.gamma);
  $('targetGammaValue').setCustomValidity('');
@@ -1517,13 +1565,14 @@ function measuredTargetChoices(profile){
  };
 }
 function openTargetImport(profile){
+ clearTargetPresetPreview();
  targetImportProfile=profile;
  const values=measuredTargetChoices(profile),options=targetImportDialog.querySelector('.target-import-options');options.replaceChildren();
  targetImportDialog.querySelector('.target-import-name').textContent=profile.name;
  for(const [key,title] of targetImportChoices){
   const label=document.createElement('label'),checkbox=document.createElement('input'),detail=document.createElement('span');
   checkbox.type='checkbox';checkbox.value=key;checkbox.checked=values[key].valid;checkbox.disabled=!values[key].valid;
-  detail.textContent=`${title}: ${values[key].label}`;label.append(checkbox,detail);options.append(label);
+   detail.textContent=`${title}: ${values[key].label}`;label.append(checkbox,detail);options.append(label);
  }
  targetImportDialog.showModal();
 }

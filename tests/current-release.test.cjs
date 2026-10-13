@@ -35,6 +35,27 @@ test('Profile and imported Target EOTF use the arithmetic mean of per-level gamm
   assert.match(app, /eotf:\{value:gamma,valid:Number\.isFinite\(gamma\)&&gamma>0/);
 });
 
+test('built-in Color Space hover previews temporarily swap and restore the complete target state', () => {
+  const app = read('app.js');
+  assert.match(app, /function clearTargetPresetPreview\(item=null,redraw=true\)\{[\s\S]*?TARGET_CONFIG=preview\.config;TARGET_RGB_TO_XYZ=preview\.rgbToXyz;TARGET_XYZ_TO_RGB=preview\.xyzToRgb/);
+  assert.match(app, /item\.addEventListener\('mouseenter',\(\)=>previewTargetPreset\(preset,item\)\)/);
+  assert.match(app, /item\.addEventListener\('focus',\(\)=>previewTargetPreset\(preset,item\)\)/);
+  assert.match(app, /function applyTargetPreset\(preset\)\{\s*clearTargetPresetPreview\(null,false\)/);
+  assert.match(app, /function refresh\(\)\{\s*if\(targetPresetPreview\)clearTargetPresetPreview\(null,false\)/);
+  assert.match(app, /targetPreviewBadge\.textContent=`Preview · \$\{label\}`/);
+  assert.match(read('styles.css'), /\.target-preset-item\.previewing\{/);
+});
+
+test('imported target-only bcs previews header gamut, white point, and gamma without committing', () => {
+  const app = read('app.js');
+  assert.match(app, /if\(kind==='spaces'\)\{\s*item\.addEventListener\('mouseenter',\(\)=>previewImportedTargetSpace\(profile,item\)\)/);
+  assert.match(app, /function previewImportedTargetSpace\(profile,item\)\{\s*const head=profile\?\.headTarget/);
+  assert.match(app, /if\(\['R','G','B'\]\.every\(channel=>validXy\(primaries\[channel\]\)\)\)selectCustomTargetPrimaries\(primaries\)/);
+  assert.match(app, /if\(validXy\(head\.whitePoint\)\)selectCustomTargetWhitePoint\(\.\.\.head\.whitePoint\)/);
+  assert.match(app, /if\(Number\.isFinite\(head\.gamma\)&&head\.gamma>0\)selectCustomTargetGamma\(head\.gamma\)/);
+  assert.match(app, /function openTargetImport\(profile\)\{\s*clearTargetPresetPreview\(\)/);
+});
+
 test('volumetric zoom limits are 0.7x through 100x', () => {
   assert.match(read('charts.js'), /Math\.max\(\.7,Math\.min\(100,/);
   assert.match(read('app.js'), /Math\.max\(\.7,Math\.min\(100,/);
