@@ -56,6 +56,29 @@ test('imported target-only bcs previews header gamut, white point, and gamma wit
   assert.match(app, /function openTargetImport\(profile\)\{\s*clearTargetPresetPreview\(\)/);
 });
 
+test('CIE uv auto-fit keeps the default uv bounds in uv coordinates', () => {
+  const source = read('charts.js');
+  const start = source.indexOf('function chartBounds(');
+  const end = source.indexOf('\nfunction createChartState(', start);
+  assert.ok(start >= 0 && end > start);
+  const helpers = source.slice(start, end);
+  const view = vm.runInNewContext(`${helpers}\nconst state={coordinateMode:'uv',autoFit:true};const panel={state};fitCieContent(panel);state.view`, {
+    TARGET_CONFIG: {
+      gamut: { primaries: { R: [0.64, 0.33], G: [0.3, 0.6], B: [0.15, 0.06] } },
+      whitePoint: { x: 0.3127, y: 0.329 }
+    },
+    cieCoordinates: (x, y, mode) => mode === 'xy' ? { x, y } : { x: 4 * x / (-2 * x + 12 * y + 3), y: 9 * y / (-2 * x + 12 * y + 3) },
+    cieTargetVertices: () => [],
+    forEachVisibleProfileBackToFront: () => {},
+    ciePrimaryPoints: () => ({}),
+    targetWhitePointForProfile: () => null
+  });
+  assert.ok(Math.abs(view.xmin - -0.042) < 1e-9);
+  assert.ok(Math.abs(view.xmax - 0.742) < 1e-9);
+  assert.ok(Math.abs(view.ymin - -0.092) < 1e-9);
+  assert.ok(Math.abs(view.ymax - 0.692) < 1e-9);
+});
+
 test('volumetric zoom limits are 0.7x through 100x', () => {
   assert.match(read('charts.js'), /Math\.max\(\.7,Math\.min\(100,/);
   assert.match(read('app.js'), /Math\.max\(\.7,Math\.min\(100,/);

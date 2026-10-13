@@ -125,8 +125,7 @@ function initialChartView(type, state) {
 }
 function fitCieContent(panel) {
  const state=panel.state;if(!state.autoFit)return;
- const bounds=chartBounds('cie',state),base=initialChartView('cie',state),points=[
-  [bounds.xmin,bounds.ymin],[bounds.xmin,bounds.ymax],[bounds.xmax,bounds.ymin],[bounds.xmax,bounds.ymax],
+ const base=initialChartView('cie',state),points=[
   ...['R','G','B'].map(channel=>TARGET_CONFIG.gamut.primaries[channel]),
   [TARGET_CONFIG.whitePoint.x,TARGET_CONFIG.whitePoint.y],
   ...cieTargetVertices(null).map(({x,y})=>[x,y])
