@@ -49,11 +49,25 @@ test('built-in Color Space hover previews temporarily swap and restore the compl
 test('imported target-only bcs previews header gamut, white point, and gamma without committing', () => {
   const app = read('app.js');
   assert.match(app, /if\(kind==='spaces'\)\{\s*item\.addEventListener\('mouseenter',\(\)=>previewImportedTargetSpace\(profile,item\)\)/);
-  assert.match(app, /function previewImportedTargetSpace\(profile,item\)\{\s*const head=profile\?\.headTarget/);
+  assert.match(app, /function previewImportedTargetSpace\(profile,item\)\{\s*if\(targetImportApplying\)return;\s*const head=profile\?\.headTarget/);
   assert.match(app, /if\(\['R','G','B'\]\.every\(channel=>validXy\(primaries\[channel\]\)\)\)selectCustomTargetPrimaries\(primaries\)/);
   assert.match(app, /if\(validXy\(head\.whitePoint\)\)selectCustomTargetWhitePoint\(\.\.\.head\.whitePoint\)/);
   assert.match(app, /if\(Number\.isFinite\(head\.gamma\)&&head\.gamma>0\)selectCustomTargetGamma\(head\.gamma\)/);
   assert.match(app, /function openTargetImport\(profile\)\{\s*clearTargetPresetPreview\(\)/);
+});
+
+test('applying an imported target suppresses focus-restored previews before refreshing', () => {
+  const app = read('app.js');
+  assert.match(app, /let targetImportApplying=false/);
+  assert.match(app, /function previewImportedTargetSpace\(profile,item\)\{\s*if\(targetImportApplying\)return/);
+  const start = app.indexOf("targetImportDialog.querySelector('.target-import-apply').onclick=()=>{");
+  const end = app.indexOf('\n};', start);
+  assert.ok(start >= 0 && end > start);
+  const applyHandler = app.slice(start, end);
+  assert.ok(applyHandler.indexOf('targetImportApplying=true') < applyHandler.indexOf('targetImportDialog.close()'));
+  assert.ok(applyHandler.indexOf('targetImportDialog.close()') < applyHandler.indexOf('clearTargetPresetPreview(null,false)'));
+  assert.ok(applyHandler.indexOf('clearTargetPresetPreview(null,false)') < applyHandler.indexOf("selectCustomTargetPrimaries(values.gamut.value)"));
+  assert.match(applyHandler, /finally\{targetImportApplying=false\}/);
 });
 
 test('CIE uv auto-fit keeps the default uv bounds in uv coordinates', () => {

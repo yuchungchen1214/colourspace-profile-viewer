@@ -1520,6 +1520,7 @@ function previewTargetPreset(preset,item){
  });
 }
 function previewImportedTargetSpace(profile,item){
+ if(targetImportApplying)return;
  const head=profile?.headTarget;if(!head)return;
  beginTargetPreview(item,profile.name,()=>{
   const primaries=head.primaries||{},validXy=pair=>Array.isArray(pair)&&pair.length===2&&pair.every(Number.isFinite)&&pair[1]>0&&pair[0]+pair[1]<=1;
@@ -1539,6 +1540,7 @@ const targetImportDialog=document.createElement('dialog');targetImportDialog.cla
 targetImportDialog.innerHTML='<h2>Use measured values as Target</h2><p class="target-import-name"></p><div class="target-import-options"></div><div class="target-import-actions"><button type="button" class="target-import-cancel">Cancel</button><button type="button" class="target-import-apply">Apply</button></div>';
 document.body.append(targetImportDialog);
 let targetImportProfile=null;
+let targetImportApplying=false;
 const targetImportChoices=[['gamut','Gamut'],['whitePoint','White Point'],['eotf','EOTF'],['ymax','Ymax'],['ymin','Ymin']];
 function measuredTargetChoices(profile){
  if(!isMeasuredProfile(profile)&&profile.headTarget){
@@ -1580,13 +1582,16 @@ targetImportDialog.querySelector('.target-import-cancel').onclick=()=>targetImpo
 targetImportDialog.querySelector('.target-import-apply').onclick=()=>{
  if(!targetImportProfile)return;
  const values=measuredTargetChoices(targetImportProfile),selected=new Set([...targetImportDialog.querySelectorAll('input:checked')].map(input=>input.value));
- targetImportDialog.close();targetImportProfile=null;
- if(selected.has('gamut'))selectCustomTargetPrimaries(values.gamut.value);
- if(selected.has('whitePoint'))selectCustomTargetWhitePoint(...values.whitePoint.value);
- if(selected.has('eotf'))selectCustomTargetGamma(values.eotf.value);
- if(selected.has('ymax'))selectTargetLuminance('ymax','custom',values.ymax.value);
- if(selected.has('ymin'))selectTargetLuminance('ymin','custom',values.ymin.value);
- if(selected.size){hideChartHover();refresh()}
+ targetImportApplying=true;
+ try{
+  targetImportDialog.close();targetImportProfile=null;clearTargetPresetPreview(null,false);
+  if(selected.has('gamut'))selectCustomTargetPrimaries(values.gamut.value);
+  if(selected.has('whitePoint'))selectCustomTargetWhitePoint(...values.whitePoint.value);
+  if(selected.has('eotf'))selectCustomTargetGamma(values.eotf.value);
+  if(selected.has('ymax'))selectTargetLuminance('ymax','custom',values.ymax.value);
+  if(selected.has('ymin'))selectTargetLuminance('ymin','custom',values.ymin.value);
+  if(selected.size){hideChartHover();refresh()}
+ }finally{targetImportApplying=false}
 };
 const hasTargetProfilePayload=event=>['application/x-bcs-profile-index','application/x-bcs-target-preset'].some(type=>[...(event.dataTransfer?.types||[])].includes(type));
 targetDropPanel.addEventListener('dragenter',event=>{if(window.__viewerReadOnlyReport&&event.dataTransfer?.types.includes('application/x-bcs-profile-index'))return;if(hasTargetProfilePayload(event)){event.preventDefault();targetDropPanel.classList.add('drop-active')}});
