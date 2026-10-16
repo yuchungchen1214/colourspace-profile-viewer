@@ -50,8 +50,8 @@ test('imported target-only bcs previews header gamut, white point, and gamma wit
   const app = read('app.js');
   assert.match(app, /if\(kind==='spaces'\)\{\s*item\.addEventListener\('mouseenter',\(\)=>previewImportedTargetSpace\(profile,item\)\)/);
   assert.match(app, /function previewImportedTargetSpace\(profile,item\)\{\s*if\(targetImportApplying\)return;\s*const head=profile\?\.headTarget/);
-  assert.match(app, /if\(\['R','G','B'\]\.every\(channel=>validXy\(primaries\[channel\]\)\)\)selectCustomTargetPrimaries\(primaries\)/);
-  assert.match(app, /if\(validXy\(head\.whitePoint\)\)selectCustomTargetWhitePoint\(\.\.\.head\.whitePoint\)/);
+  assert.match(app, /if\(\['R','G','B'\]\.every\(channel=>finitePair\(primaries\[channel\]\)\)\)selectCustomTargetPrimaries\(primaries\)/);
+  assert.match(app, /if\(validWhitePoint\(head\.whitePoint\)\)selectCustomTargetWhitePoint\(\.\.\.head\.whitePoint\)/);
   assert.match(app, /if\(Number\.isFinite\(head\.gamma\)&&head\.gamma>0\)selectCustomTargetGamma\(head\.gamma\)/);
   assert.match(app, /function openTargetImport\(profile\)\{\s*clearTargetPresetPreview\(\)/);
 });
@@ -68,6 +68,23 @@ test('applying an imported target suppresses focus-restored previews before refr
   assert.ok(applyHandler.indexOf('targetImportDialog.close()') < applyHandler.indexOf('clearTargetPresetPreview(null,false)'));
   assert.ok(applyHandler.indexOf('clearTargetPresetPreview(null,false)') < applyHandler.indexOf("selectCustomTargetPrimaries(values.gamut.value)"));
   assert.match(applyHandler, /finally\{targetImportApplying=false\}/);
+});
+
+test('imported target gamut accepts finite primaries outside the xy triangle', () => {
+  const app = read('app.js');
+  const start = app.indexOf('function measuredTargetChoices(');
+  const end = app.indexOf('\nfunction openTargetImport(', start);
+  assert.ok(start >= 0 && end > start);
+  const measuredTargetChoices = vm.runInNewContext(`${app.slice(start, end)}; measuredTargetChoices`, {
+    isMeasuredProfile: () => false
+  });
+  const choices = measuredTargetChoices({headTarget: {
+    primaries: {R:[0.6890,0.3165],G:[0.1692,0.7208],B:[0.1316,0.0659]},
+    whitePoint:[0.2847,0.2917],
+    gamma:2.8
+  }});
+  assert.equal(choices.gamut.valid, true);
+  assert.deepEqual(JSON.parse(JSON.stringify(choices.gamut.value.R)), [0.6890,0.3165]);
 });
 
 test('CIE uv auto-fit keeps the default uv bounds in uv coordinates', () => {

@@ -1523,9 +1523,9 @@ function previewImportedTargetSpace(profile,item){
  if(targetImportApplying)return;
  const head=profile?.headTarget;if(!head)return;
  beginTargetPreview(item,profile.name,()=>{
-  const primaries=head.primaries||{},validXy=pair=>Array.isArray(pair)&&pair.length===2&&pair.every(Number.isFinite)&&pair[1]>0&&pair[0]+pair[1]<=1;
-  if(['R','G','B'].every(channel=>validXy(primaries[channel])))selectCustomTargetPrimaries(primaries);
-  if(validXy(head.whitePoint))selectCustomTargetWhitePoint(...head.whitePoint);
+  const primaries=head.primaries||{},finitePair=pair=>Array.isArray(pair)&&pair.length===2&&pair.every(Number.isFinite),validWhitePoint=pair=>finitePair(pair)&&pair[1]>0;
+  if(['R','G','B'].every(channel=>finitePair(primaries[channel])))selectCustomTargetPrimaries(primaries);
+  if(validWhitePoint(head.whitePoint))selectCustomTargetWhitePoint(...head.whitePoint);
   if(Number.isFinite(head.gamma)&&head.gamma>0)selectCustomTargetGamma(head.gamma);
  });
 }
@@ -1545,11 +1545,11 @@ const targetImportChoices=[['gamut','Gamut'],['whitePoint','White Point'],['eotf
 function measuredTargetChoices(profile){
  if(!isMeasuredProfile(profile)&&profile.headTarget){
   const {primaries,whitePoint,gamma}=profile.headTarget;
-  const validXy=pair=>pair?.length===2&&pair.every(Number.isFinite)&&pair[0]>0&&pair[1]>0&&pair[0]+pair[1]<=1;
+  const finitePair=pair=>pair?.length===2&&pair.every(Number.isFinite),validWhitePoint=pair=>finitePair(pair)&&pair[1]>0;
   const unavailable={value:null,valid:false,label:'N/A'};
   return{
-   gamut:{value:primaries,valid:['R','G','B'].every(channel=>validXy(primaries[channel])),label:['R','G','B'].map(channel=>`${channel} ${primaries[channel]?.map(value=>value.toFixed(4)).join(', ')||'N/A'}`).join(' · ')},
-   whitePoint:{value:whitePoint,valid:validXy(whitePoint),label:whitePoint?.map(value=>value.toFixed(4)).join(', ')||'N/A'},
+   gamut:{value:primaries,valid:['R','G','B'].every(channel=>finitePair(primaries[channel])),label:['R','G','B'].map(channel=>`${channel} ${primaries[channel]?.map(value=>value.toFixed(4)).join(', ')||'N/A'}`).join(' · ')},
+   whitePoint:{value:whitePoint,valid:validWhitePoint(whitePoint),label:whitePoint?.map(value=>value.toFixed(4)).join(', ')||'N/A'},
    eotf:{value:gamma,valid:Number.isFinite(gamma)&&gamma>0,label:Number.isFinite(gamma)?`Gamma ${gamma.toFixed(2)}`:'N/A'},
    ymax:unavailable,ymin:unavailable
   };
