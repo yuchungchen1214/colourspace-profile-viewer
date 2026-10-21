@@ -41,6 +41,8 @@ test('built-in Color Space hover previews temporarily swap and restore the compl
   assert.match(app, /item\.addEventListener\('mouseenter',\(\)=>previewTargetPreset\(preset,item\)\)/);
   assert.match(app, /item\.addEventListener\('focus',\(\)=>previewTargetPreset\(preset,item\)\)/);
   assert.match(app, /function applyTargetPreset\(preset\)\{\s*clearTargetPresetPreview\(null,false\)/);
+  assert.match(app, /function beginTargetPreview\(item,label,apply\)\{\s*if\(targetPresetPreview\?\.item===item\)return/);
+  assert.doesNotMatch(app, /function beginTargetPreview\(item,label,apply\)\{\s*if\(window\.__viewerReadOnlyReport/);
   assert.match(app, /function refresh\(\)\{\s*if\(targetPresetPreview\)clearTargetPresetPreview\(null,false\)/);
   assert.match(app, /targetPreviewBadge\.textContent=`Preview · \$\{label\}`/);
   assert.match(read('styles.css'), /\.target-preset-item\.previewing\{/);

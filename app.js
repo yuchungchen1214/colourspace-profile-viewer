@@ -1507,7 +1507,7 @@ function clearTargetPresetPreview(item=null,redraw=true){
  if(redraw)renderTargetPreview();
 }
 function beginTargetPreview(item,label,apply){
- if(window.__viewerReadOnlyReport||targetPresetPreview?.item===item)return;
+ if(targetPresetPreview?.item===item)return;
  const base=targetPresetPreview||{config:TARGET_CONFIG,rgbToXyz:TARGET_RGB_TO_XYZ,xyzToRgb:TARGET_XYZ_TO_RGB};
  if(targetPresetPreview){targetPresetPreview.item.classList.remove('previewing');TARGET_CONFIG=base.config;TARGET_RGB_TO_XYZ=base.rgbToXyz;TARGET_XYZ_TO_RGB=base.xyzToRgb}
  targetPresetPreview={...base,item};item.classList.add('previewing');targetPreviewBadge.textContent=`Preview · ${label}`;targetPreviewBadge.hidden=false;
