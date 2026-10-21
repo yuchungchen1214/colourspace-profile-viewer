@@ -488,7 +488,7 @@ function renderProfileTree(list){
    item.className='profile profile-item'+(profileVisible(index)?'':' off')+(selectedFileIndices.has(index)?' file-selected':'');
    item.tabIndex=0;item.draggable=!window.__viewerReadOnlyReport;item.dataset.profileIndex=index;item.dataset.profileKind=kind;item.setAttribute('aria-label',profile.name+(window.__viewerReadOnlyReport?'':isMeasuredProfile(profile)?' profile; drag onto a chart or Target':' target-only bcs; drag onto Target'));item.style.paddingLeft=`${7+depth*16}px`;
    item.addEventListener('click',event=>selectFileRow(index,event));
-   item.addEventListener('dblclick',event=>{event.preventDefault();doubleClickFileProfile(index)});
+   item.addEventListener('dblclick',event=>{event.preventDefault();if(window.__viewerReadOnlyReport&&kind==='spaces'){applyImportedTargetSpace(profile);return}doubleClickFileProfile(index)});
    item.addEventListener('dragstart',event=>{
     if(window.__viewerReadOnlyReport){event.preventDefault();return}
     if(!selectedFileIndices.has(index)){selectedFileIndices.clear();selectedFileIndices.add(index);selectionAnchor=index;updateFileSelectionStyles()}
@@ -510,7 +510,7 @@ function renderProfileTree(list){
    }
    const name=document.createElement('span');name.textContent=filename;
    const assigned=activeChartPanels().filter(panel=>panel.selectedProfiles.has(index)).length;item.classList.toggle('in-chart',assigned>0);
-   item.title=(profile.flatSource?profile.name:profile.sourcePath)+(kind==='spaces'?' · Hover to preview; drag onto Target or double-click to apply colour space settings':assigned?` · Displayed in ${assigned} chart${assigned===1?'':'s'}`:' · Drag onto a chart to display');item.append(toggle,name);
+   item.title=(profile.flatSource?profile.name:profile.sourcePath)+(kind==='spaces'?(window.__viewerReadOnlyReport?' · Double-click to apply colour space settings':' · Hover to preview; drag onto Target or double-click to apply colour space settings'):assigned?` · Displayed in ${assigned} chart${assigned===1?'':'s'}`:' · Drag onto a chart to display');item.append(toggle,name);
    if(kind==='spaces'){
     item.addEventListener('mouseenter',()=>previewImportedTargetSpace(profile,item));
     item.addEventListener('mouseleave',()=>{if(document.activeElement!==item)clearTargetPresetPreview(item)});
@@ -1163,7 +1163,7 @@ function assertExportableProfile(index){
  for(const channel of ['red','green','blue','white']){
   const xv=x?.getAttribute(channel),yv=y?.getAttribute(channel);
   if(xv==null&&yv==null)continue;
-  if(!xv||!yv||!Number.isFinite(Number(xv))||!Number.isFinite(Number(yv))||Number(xv)<=0||Number(yv)<=0||Number(xv)+Number(yv)>1)throw new Error(`Invalid bcs chromaticity: ${profile.name}`);
+  if(xv.trim()===''||yv.trim()===''||!Number.isFinite(Number(xv))||!Number.isFinite(Number(yv)))throw new Error(`Invalid bcs chromaticity: ${profile.name}`);
  }
  if(!isSupportedProfile(profile)||patches.length!==profile.points.length||patches.some(patch=>['red','green','blue','X','Y','Z'].some(key=>{
   const value=patch.querySelector(key)?.textContent?.trim();return !value||!Number.isFinite(Number(value));
@@ -1177,6 +1177,7 @@ async function importSettings(file){
 }
 function makeCompleteReport(){
  const used=new Set(profilePanelIndices.filter(index=>index>=0&&profiles[index]&&profileVisible(index)));
+ profiles.forEach((profile,index)=>{if(!isMeasuredProfile(profile)&&profile.headTarget)used.add(index)});
  for(const panel of activeChartPanels())for(const index of panel.selectedProfiles)if(index>=0&&index<profiles.length&&profileVisible(index))used.add(index);
  assertExportableTarget([...used].filter(index=>isMeasuredProfile(profiles[index])));
  for(const index of used)assertExportableProfile(index);
@@ -1528,6 +1529,15 @@ function previewImportedTargetSpace(profile,item){
   if(validWhitePoint(head.whitePoint))selectCustomTargetWhitePoint(...head.whitePoint);
   if(Number.isFinite(head.gamma)&&head.gamma>0)selectCustomTargetGamma(head.gamma);
  });
+}
+function applyImportedTargetSpace(profile){
+ const head=profile?.headTarget;if(!head)return;
+ const primaries=head.primaries||{},finitePair=pair=>Array.isArray(pair)&&pair.length===2&&pair.every(Number.isFinite),validWhitePoint=pair=>finitePair(pair)&&pair[1]>0;
+ clearTargetPresetPreview(null,false);
+ if(['R','G','B'].every(channel=>finitePair(primaries[channel])))selectCustomTargetPrimaries(primaries);
+ if(validWhitePoint(head.whitePoint))selectCustomTargetWhitePoint(...head.whitePoint);
+ if(Number.isFinite(head.gamma)&&head.gamma>0)selectCustomTargetGamma(head.gamma);
+ $('targetGammaValue').setCustomValidity('');hideChartHover();refresh();
 }
 function applyTargetPreset(preset){
  clearTargetPresetPreview(null,false);

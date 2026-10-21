@@ -88,9 +88,9 @@ Open the gear menu to access **Import**, **Export**, **Clear data**, **Reset wor
 - **Complete data (.json):** the profile data together with workspace settings, for later import into the viewer.
 - **External report (.html):** a self-contained interactive report that can be opened or shared as one HTML file.
 
-Exported filenames use the optional date and author when present. A report includes the profiles currently loaded for the report and the relevant workspace presentation settings. Check the recipient and contents before sharing measurement data.
+Exported filenames use the optional date and author when present. A report includes the profiles currently loaded for the report, imported Color Spaces, and the relevant workspace presentation settings. Check the recipient and contents before sharing measurement data.
 
-In an external report, readers can change chart presentation, hide profiles, and restore hidden profiles. Hovering a chart point temporarily replaces the Note contents with that point's Patch details; moving away restores the Note. Readers cannot switch the panel manually, import more profiles, drag profiles between charts or Profile panels, recolour profiles, edit notes, or change the report's saved Target values; **Reset Target** returns to the values captured at export.
+In an external report, readers can change chart presentation, hide profiles, and restore hidden profiles. Double-click an imported Color Space to apply its available gamut, white point, and EOTF/gamma values to Target for viewing; this does not modify the source report. Hovering a chart point temporarily replaces the Note contents with that point's Patch details; moving away restores the Note. Readers cannot switch the panel manually, import more profiles, drag profiles between charts or Profile panels, recolour profiles, edit notes, or edit Target values directly; **Reset Target** returns to the values captured at export.
 
 ## Practical notes
 

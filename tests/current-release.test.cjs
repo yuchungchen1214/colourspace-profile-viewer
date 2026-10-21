@@ -56,6 +56,14 @@ test('imported target-only bcs previews header gamut, white point, and gamma wit
   assert.match(app, /function openTargetImport\(profile\)\{\s*clearTargetPresetPreview\(\)/);
 });
 
+test('external reports include imported Color Spaces and let readers apply them to Target', () => {
+  const app = read('app.js');
+  assert.match(app, /profiles\.forEach\(\(profile,index\)=>\{if\(!isMeasuredProfile\(profile\)&&profile\.headTarget\)used\.add\(index\)\}\)/);
+  assert.match(app, /if\(window\.__viewerReadOnlyReport&&kind==='spaces'\)\{applyImportedTargetSpace\(profile\);return\}/);
+  assert.match(app, /function applyImportedTargetSpace\(profile\)\{[\s\S]*?selectCustomTargetPrimaries\(primaries\)[\s\S]*?selectCustomTargetWhitePoint\(\.\.\.head\.whitePoint\)[\s\S]*?selectCustomTargetGamma\(head\.gamma\)/);
+  assert.match(app, /xv\.trim\(\)===''\|\|yv\.trim\(\)===''\|\|!Number\.isFinite\(Number\(xv\)\)\|\|!Number\.isFinite\(Number\(yv\)\)/);
+});
+
 test('applying an imported target suppresses focus-restored previews before refreshing', () => {
   const app = read('app.js');
   assert.match(app, /let targetImportApplying=false/);
