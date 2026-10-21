@@ -607,7 +607,18 @@ function chartPointerPosition(panel,event) {
  const r=panel.canvas.getBoundingClientRect();
  return {x:(event.clientX-r.left)*panel.canvas.clientWidth/r.width,y:(event.clientY-r.top)*panel.canvas.clientHeight/r.height};
 }
-function paintPatch(data){if(!chartHover)return;for(const key of ['name','targetXYZ','targetYxy','actualXYZ','actualYxy','extra']){const field=chartHover.fields[key];field.textContent=data?.[key]||'';field.title=data?.[key]||''}const rgbField=chartHover.fields.rgb;rgbField.replaceChildren();rgbField.title=data?.rgb||'';rgbField.setAttribute('aria-label',data?.rgb||'');if(data?.rgb){const label=document.createElement('span');label.textContent='RGB:';rgbField.append(label);if(data.rgbColor){const swatch=document.createElement('span');swatch.className='patch-rgb-swatch';swatch.style.backgroundColor=data.rgbColor;swatch.setAttribute('aria-hidden','true');rgbField.append(swatch)}const values=document.createElement('span');values.textContent=data.rgb.replace(/^RGB:\s*/, '');rgbField.append(values)}chartHover.fields.nameDot.hidden=!data?.name;chartHover.fields.nameDot.style.setProperty('--patch-color',data?.color||'#aaa')}
+function paintPatch(data){
+ if(!chartHover)return;
+ if(window.__viewerReadOnlyReport){
+  const showPatch=Boolean(chartHover.hoverData);
+  chartHover.fields.patchPanel.hidden=!showPatch;chartHover.fields.notePanel.hidden=showPatch;
+  if(!showPatch)data=null;
+ }
+ for(const key of ['name','targetXYZ','targetYxy','actualXYZ','actualYxy','extra']){const field=chartHover.fields[key];field.textContent=data?.[key]||'';field.title=data?.[key]||''}
+ const rgbField=chartHover.fields.rgb;rgbField.replaceChildren();rgbField.title=data?.rgb||'';rgbField.setAttribute('aria-label',data?.rgb||'');
+ if(data?.rgb){const label=document.createElement('span');label.textContent='RGB:';rgbField.append(label);if(data.rgbColor){const swatch=document.createElement('span');swatch.className='patch-rgb-swatch';swatch.style.backgroundColor=data.rgbColor;swatch.setAttribute('aria-hidden','true');rgbField.append(swatch)}const values=document.createElement('span');values.textContent=data.rgb.replace(/^RGB:\s*/, '');rgbField.append(values)}
+ chartHover.fields.nameDot.hidden=!data?.name;chartHover.fields.nameDot.style.setProperty('--patch-color',data?.color||'#aaa')
+}
 function pinnedPointMatches(candidate,pinned){
  const point=pinned.point;
  if(point.q)return candidate.profileIndex===point.profileIndex&&candidate.q===point.q&&candidate.channel===point.channel;
@@ -847,7 +858,7 @@ function updateProfileChartAssignments() {
 function initializeChartPanels() {
  const host=$('chartSlots');host.replaceChildren();
  const ring=document.createElement('div');
- ring.className='chart-hover-ring';ring.hidden=true;document.body.append(ring);const clickRing=document.createElement('div');clickRing.className='chart-hover-ring';clickRing.hidden=true;document.body.append(clickRing);chartHover={ring,clickRing,clickFeedbackTimer:null,fields:{name:$('patchName'),nameDot:$('patchNameDot'),rgb:$('patchRgb'),targetXYZ:$('patchTargetXYZ'),targetYxy:$('patchTargetYxy'),actualXYZ:$('patchActualXYZ'),actualYxy:$('patchActualYxy'),extra:$('patchExtra')},hoverData:null,pinnedData:null,pinnedPoint:null,panel:null,patchHovered:false};
+ ring.className='chart-hover-ring';ring.hidden=true;document.body.append(ring);const clickRing=document.createElement('div');clickRing.className='chart-hover-ring';clickRing.hidden=true;document.body.append(clickRing);chartHover={ring,clickRing,clickFeedbackTimer:null,fields:{name:$('patchName'),nameDot:$('patchNameDot'),rgb:$('patchRgb'),targetXYZ:$('patchTargetXYZ'),targetYxy:$('patchTargetYxy'),actualXYZ:$('patchActualXYZ'),actualYxy:$('patchActualYxy'),extra:$('patchExtra'),patchPanel:document.querySelector('.detail-panel .patch-panel'),notePanel:document.querySelector('.detail-panel .note-panel')},hoverData:null,pinnedData:null,pinnedPoint:null,panel:null,patchHovered:false};
  const patchPanel=document.querySelector('.detail-panel .patch-panel');patchPanel.addEventListener('pointerenter',()=>setPinnedChartPatchHover(true));patchPanel.addEventListener('pointerleave',()=>setPinnedChartPatchHover(false));
  window.addEventListener('resize',()=>updatePinnedChartRing());window.addEventListener('scroll',()=>updatePinnedChartRing(),true);
  const pointMenu=document.createElement('div'),hidePointButton=document.createElement('button');

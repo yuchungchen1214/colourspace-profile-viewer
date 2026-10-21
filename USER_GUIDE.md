@@ -16,7 +16,7 @@ Imported measurements are processed in the browser and are not uploaded by the v
 - **Charts** show the selected measurements. Each chart has its own profile selection and view settings.
 - **Profile** panels show details for up to two assigned profiles. Drag a profile onto a panel to assign it; drag one Profile panel onto the other to swap them.
 - **Target** defines the reference used by target-dependent chart overlays and comparisons.
-- **Patch / Note** shows details for the point under the pointer, or a note for the workspace. In exported reports this area is fixed to **Note**.
+- **Patch / Note** shows details for the point under the pointer, or a note for the workspace. In exported reports the title remains **Note**; hovering a chart point temporarily shows its Patch details, then restores the Note.
 
 The panel dividers can be dragged to adjust the Files and Profile areas. Drag the divider between the two Profile panels to change their relative heights. Target can be collapsed from its `…` menu; the same menu also resets Target settings.
 
@@ -90,7 +90,7 @@ Open the gear menu to access **Import**, **Export**, **Clear data**, **Reset wor
 
 Exported filenames use the optional date and author when present. A report includes the profiles currently loaded for the report and the relevant workspace presentation settings. Check the recipient and contents before sharing measurement data.
 
-In an external report, readers can change chart presentation, hide profiles, and restore hidden profiles. They cannot import more profiles, drag profiles between charts or Profile panels, recolour profiles, edit notes, or change the report's saved Target values; **Reset Target** returns to the values captured at export.
+In an external report, readers can change chart presentation, hide profiles, and restore hidden profiles. Hovering a chart point temporarily replaces the Note contents with that point's Patch details; moving away restores the Note. Readers cannot switch the panel manually, import more profiles, drag profiles between charts or Profile panels, recolour profiles, edit notes, or change the report's saved Target values; **Reset Target** returns to the values captured at export.
 
 ## Practical notes
 

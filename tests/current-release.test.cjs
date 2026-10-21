@@ -87,6 +87,21 @@ test('imported target gamut accepts finite primaries outside the xy triangle', (
   assert.deepEqual(JSON.parse(JSON.stringify(choices.gamut.value.R)), [0.6890,0.3165]);
 });
 
+test('read-only reports temporarily replace Note with Patch details only while hovering chart points', () => {
+  const charts = read('charts.js');
+  const start = charts.indexOf('function paintPatch(');
+  const end = charts.indexOf('\nfunction pinnedPointMatches(', start);
+  assert.ok(start >= 0 && end > start);
+  const paintPatch = charts.slice(start, end);
+  assert.match(paintPatch, /if\(window\.__viewerReadOnlyReport\)\{/);
+  assert.match(paintPatch, /const showPatch=Boolean\(chartHover\.hoverData\)/);
+  assert.match(paintPatch, /chartHover\.fields\.patchPanel\.hidden=!showPatch;chartHover\.fields\.notePanel\.hidden=showPatch/);
+  assert.match(paintPatch, /if\(!showPatch\)data=null/);
+  assert.match(read('index.html'), /chartHover\.fields\.patchPanel\.hidden=!showPatch/);
+  assert.match(read('app.js'), /const detailTitle=clone\.querySelector\('#detailPanelTitle'\);if\(detailTitle\)detailTitle\.textContent='Note'/);
+  assert.match(read('app.js'), /const patchView=clone\.querySelector\('\.detail-panel \.patch-panel'\);if\(patchView\)patchView\.hidden=true/);
+});
+
 test('CIE uv auto-fit keeps the default uv bounds in uv coordinates', () => {
   const source = read('charts.js');
   const start = source.indexOf('function chartBounds(');
