@@ -59,7 +59,12 @@ test('Target export validation accepts precise built-in gamma values and clears 
     assert.ok(start >= 0 && end > start, `Missing ${control} change handler`);
     assert.match(app.slice(start, end), /clearTargetInputValidity\(\)/);
   }
-  assert.match(app, /function assertExportableTarget\(indices\)\{\s*if\(document\.querySelector\('\.target-summary input:invalid'\)\)/);
+  const eotfStart = app.indexOf("$('targetEotf').onchange=");
+  const eotfEnd = app.indexOf('\n};', eotfStart);
+  assert.ok(eotfStart >= 0 && eotfEnd > eotfStart);
+  assert.match(app.slice(eotfStart, eotfEnd), /clearTargetInputValidity\(\)/);
+  assert.match(app, /const invalidInputs=\[\.\.\.document\.querySelectorAll\('\.target-summary input:invalid'\)\]/);
+  assert.match(app, /Target contains invalid input \(\$\{labels\.join\(', '\)\}\)/);
 });
 
 test('imported target-only bcs previews header gamut, white point, and gamma without committing', () => {

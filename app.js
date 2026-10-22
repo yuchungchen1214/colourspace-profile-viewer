@@ -752,7 +752,7 @@ $('targetWhitePoint').onchange=event=>{
 };
 $('targetEotf').onchange=event=>{
  selectTargetEotf(event.target.value);
- $('targetGammaValue').setCustomValidity('');
+ clearTargetInputValidity();
  hideChartHover();
  refresh();
 };
@@ -1150,7 +1150,8 @@ function applyImportedSettings(settings,restoreContent=false){
  hideChartHover();refresh();updateChartLegend();updateProfileChartAssignments();
 }
 function assertExportableTarget(indices){
- if(document.querySelector('.target-summary input:invalid'))throw new Error('Target contains invalid input. Correct Target before exporting.');
+ const invalidInputs=[...document.querySelectorAll('.target-summary input:invalid')];
+ if(invalidInputs.length){const labels=invalidInputs.map(input=>input.getAttribute('aria-label')||input.id||'Target input');throw new Error(`Target contains invalid input (${labels.join(', ')}). Correct Target before exporting.`)}
  const checked=indices.length?indices:[-1];
  for(const index of checked){
   const profile=index<0?{points:[]}:profiles[index];
