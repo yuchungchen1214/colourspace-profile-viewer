@@ -772,7 +772,7 @@ function bindChartPointerEvents(panel) {
    panel.touchPointers.set(event.pointerId,chartPointerPosition(panel,event));
    if(panel.touchPointers.size>=2){
     const [first,second]=[...panel.touchPointers.values()],dx=second.x-first.x,dy=second.y-first.y,distance=Math.max(1,Math.hypot(dx,dy));
-    if(panel.pinch){const x=(first.x+second.x)/2,y=(first.y+second.y)/2;zoomChartPanel(panel,x,y,0,panel.pinch.distance/distance);renderChartPanel(panel)}
+    if(panel.pinch){const x=(first.x+second.x)/2,y=(first.y+second.y)/2,factor=panel.type==='graph3d'?distance/panel.pinch.distance:panel.pinch.distance/distance;zoomChartPanel(panel,x,y,0,factor);renderChartPanel(panel)}
     panel.pinch={distance};event.preventDefault();return;
    }
   }

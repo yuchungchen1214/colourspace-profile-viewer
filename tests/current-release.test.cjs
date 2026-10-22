@@ -170,10 +170,10 @@ test('volumetric zoom limits are 0.7x through 100x', () => {
 
 test('charts support two-finger touch pinch zoom', () => {
   const charts = read('charts.js');
-  assert.match(read('index.html'), /src="charts\.js\?v=20261022-touch-pinch"/);
+  assert.match(read('index.html'), /src="charts\.js\?v=20261022-touch-pinch-direction"/);
   assert.match(charts, /pointerType==='touch'/);
   assert.match(charts, /panel\.touchPointers\.size>=2/);
-  assert.match(charts, /panel\.pinch\.distance\/distance/);
+  assert.match(charts, /panel\.type==='graph3d'\?distance\/panel\.pinch\.distance:panel\.pinch\.distance\/distance/);
   assert.match(read('styles.css'), /\.chart-slot canvas\{[^}]*touch-action:none/);
 });
 
