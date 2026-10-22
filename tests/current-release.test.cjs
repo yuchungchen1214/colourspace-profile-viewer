@@ -9,7 +9,7 @@ const read = name => fs.readFileSync(path.join(root, name), 'utf8');
 
 test('all application script references exist locally', () => {
   const html = read('index.html');
-  const sources = [...html.matchAll(/<script\s+src="([^"]+)"\s*><\/script>/g)].map(match => match[1]);
+  const sources = [...html.matchAll(/<script\s+src="([^"]+)"\s*><\/script>/g)].map(match => new URL(match[1], 'https://local.invalid').pathname.slice(1));
   assert.ok(sources.length > 0);
   for (const source of sources) assert.ok(fs.existsSync(path.join(root, source)), `Missing ${source}`);
 });
