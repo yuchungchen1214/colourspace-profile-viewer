@@ -6,7 +6,7 @@ const directory = path.dirname(fileURLToPath(import.meta.url));
 const indexPath = path.join(directory, 'index.html');
 let html = fs.readFileSync(indexPath, 'utf8');
 const scriptPaths = [...html.matchAll(/<script\s+src="([^"]+)"\s*><\/script>/g)].map(match => match[1]);
-const scripts = scriptPaths.filter(src => src !== 'demo_profiles.js').map(src => ({ src, code: fs.readFileSync(path.join(directory, src), 'utf8') }));
+const scripts = scriptPaths.filter(src => new URL(src, 'https://local.invalid').pathname.slice(1) !== 'demo_profiles.js').map(src => ({ src, code: fs.readFileSync(path.join(directory, new URL(src, 'https://local.invalid').pathname.slice(1)), 'utf8') }));
 const inlineScripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(match => match[1]).filter(code => code.trim());
 const runtime = {
   css: fs.readFileSync(path.join(directory, 'styles.css'), 'utf8'),

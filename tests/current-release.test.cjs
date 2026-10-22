@@ -248,6 +248,8 @@ test('controls and hover states use neutral grayscale while the selected layout 
   assert.match(html, /\.profile-color-picker-actions button:hover\{background:#414141\}/);
   assert.match(html, /\.note-toolbar button:hover\{background:#454545\}/);
   assert.match(html, /\.profile-list \.profile-item\.file-selected\{outline:1px solid #999;background:#484848\}/);
+  assert.match(styles, /\.target-preset-item\.previewing\{background:#484848\}/);
+  assert.doesNotMatch(styles, /\.target-preset-item\.previewing\{[^}]*outline/);
 });
 
 test('menu surfaces use neutral grayscale backgrounds', () => {
