@@ -168,6 +168,21 @@ test('volumetric zoom limits are 0.7x through 100x', () => {
   assert.match(read('app.js'), /Math\.max\(\.7,Math\.min\(100,/);
 });
 
+test('charts support two-finger touch pinch zoom', () => {
+  const charts = read('charts.js');
+  assert.match(read('index.html'), /src="charts\.js\?v=20261022-touch-pinch"/);
+  assert.match(charts, /pointerType==='touch'/);
+  assert.match(charts, /panel\.touchPointers\.size>=2/);
+  assert.match(charts, /panel\.pinch\.distance\/distance/);
+  assert.match(read('styles.css'), /\.chart-slot canvas\{[^}]*touch-action:none/);
+});
+
+test('mobile reports wrap header metadata and constrain the dashboard to viewport width', () => {
+  const html = read('index.html');
+  assert.match(html, /body\.report-readonly \.header-meta\{[^}]*white-space:normal;overflow-wrap:anywhere/);
+  assert.match(html, /body\.report-readonly \.dashboard-layout\.layout-locked\.files-width-locked,[\s\S]*?width:100%;max-width:100%;min-width:0/);
+});
+
 test('chart plot backgrounds and gridlines use neutral grayscale', () => {
   const charts = read('charts.js');
   assert.match(charts, /ctx\.fillStyle='#363636';ctx\.fillRect\(domainClip\.x,domainClip\.y,domainClip\.w,domainClip\.h\)/);

@@ -569,30 +569,31 @@ function nearestChartPoint(panel,x,y) {
  for(let i=panel.points.length-1;i>=0;i--){const p=panel.points[i],d=Math.hypot(p.px-x,p.py-y);if(d<distance){nearest=p;distance=d}}
  return nearest;
 }
-function zoomChartPanel(panel,x,y,deltaY) {
+function zoomChartPanel(panel,x,y,deltaY,scaleFactor=null) {
  if(panel.type==='graph3d'){
-  if(!deltaY)return;
-  const camera=panel.state.camera,frame=panel.plot,factor=deltaY<0?1.1:.9;
+  if(!deltaY&&scaleFactor===null)return;
+  const camera=panel.state.camera,frame=panel.plot,factor=scaleFactor??(deltaY<0?1.1:.9);
   if(!frame)return;
   const centerX=frame.x+frame.w/2+(camera.panX||0),centerY=frame.y+frame.h/2+(camera.panY||0);
-  const anchor=panel.hoveredPoint||{px:x,py:y};
+  const anchor=scaleFactor===null&&panel.hoveredPoint?panel.hoveredPoint:{px:x,py:y};
   const previousZoom=camera.zoom||1,nextZoom=Math.max(.7,Math.min(100,previousZoom*factor)),actualFactor=nextZoom/previousZoom;
   camera.panX=(camera.panX||0)+(anchor.px-centerX)*(1-actualFactor);
   camera.panY=(camera.panY||0)+(anchor.py-centerY)*(1-actualFactor);
   camera.zoom=nextZoom;return;
  }
- if(!deltaY||!panel.plot?.w||!panel.plot?.h)return;
+ if((!deltaY&&scaleFactor===null)||!panel.plot?.w||!panel.plot?.h)return;
  if(panel.type==='cie')panel.state.autoFit=false;
  const plot=panel.plot,v=panel.state.view,xs=v.xmax-v.xmin,ys=v.ymax-v.ymin;
  // When Patch is showing this panel's hovered node, keep that exact node
  // anchored during wheel zoom even if the wheel event lands slightly away.
- const anchor=panel.hoveredPoint||null;
+ const anchor=scaleFactor===null?panel.hoveredPoint||null:null;
  const clamp=n=>Math.max(0,Math.min(1,n));
  const fx=clamp(((anchor?anchor.px:x)-plot.x)/plot.w),fy=clamp(((anchor?anchor.py:y)-plot.y)/plot.h);
  const cx=anchor?anchor.xValue:v.xmin+fx*xs,cy=anchor?anchor.yValue:v.ymax-fy*ys;
  const base=initialChartView(panel.type,panel.state),bx=base.xmax-base.xmin,by=base.ymax-base.ymin;
  const minFactor=panel.type==='balance'?.002:.005;
- const factor=Math.max(Math.max(bx*minFactor/xs,by*minFactor/ys),Math.min(deltaY<0?.85:1.18,bx*2/xs,by*2/ys));
+ const minScale=Math.max(bx*minFactor/xs,by*minFactor/ys),maxScale=Math.min(bx*2/xs,by*2/ys);
+ const factor=Math.max(minScale,Math.min(scaleFactor??(deltaY<0?.85:1.18),maxScale));
  const nx=xs*factor,ny=ys*factor;
  panel.state.view={xmin:cx-fx*nx,xmax:cx+(1-fx)*nx,ymin:cy-(1-fy)*ny,ymax:cy+fy*ny};
 }
@@ -740,6 +741,7 @@ function showChartHover(panel,event) {
 }
 function bindChartPointerEvents(panel) {
  const canvas=panel.canvas;
+ panel.touchPointers=new Map();panel.pinch=null;
  canvas.addEventListener('contextmenu',event=>showChartPointMenu(panel,event));
  canvas.addEventListener('wheel',event=>{
   if(!panel.type)return;
@@ -748,6 +750,14 @@ function bindChartPointerEvents(panel) {
  },{passive:false});
  canvas.addEventListener('pointerdown',event=>{
   if(!panel.type)return;
+  if(event.pointerType==='touch'){
+   panel.touchPointers.set(event.pointerId,chartPointerPosition(panel,event));
+   canvas.setPointerCapture(event.pointerId);
+   if(panel.touchPointers.size>=2){
+    const [first,second]=[...panel.touchPointers.values()],dx=second.x-first.x,dy=second.y-first.y;
+    panel.drag=null;panel.pinch={distance:Math.max(1,Math.hypot(dx,dy))};canvas.style.cursor='default';hideChartHover();event.preventDefault();return;
+   }
+  }
   if(event.button!==0||panel.drag)return;
   event.preventDefault();const p=chartPointerPosition(panel,event);
   const graph3d=panel.type==='graph3d',camera=graph3d?panel.state.camera:null;
@@ -758,6 +768,14 @@ function bindChartPointerEvents(panel) {
   canvas.setPointerCapture(event.pointerId);canvas.style.cursor='grabbing';
  });
  canvas.addEventListener('pointermove',event=>{
+  if(event.pointerType==='touch'&&panel.touchPointers.has(event.pointerId)){
+   panel.touchPointers.set(event.pointerId,chartPointerPosition(panel,event));
+   if(panel.touchPointers.size>=2){
+    const [first,second]=[...panel.touchPointers.values()],dx=second.x-first.x,dy=second.y-first.y,distance=Math.max(1,Math.hypot(dx,dy));
+    if(panel.pinch){const x=(first.x+second.x)/2,y=(first.y+second.y)/2;zoomChartPanel(panel,x,y,0,panel.pinch.distance/distance);renderChartPanel(panel)}
+    panel.pinch={distance};event.preventDefault();return;
+   }
+  }
   if(!panel.drag){showChartHover(panel,event);return}
   if(event.pointerId!==panel.drag.pointerId)return;
   const p=chartPointerPosition(panel,event),dx=p.x-panel.drag.x,dy=p.y-panel.drag.y;
@@ -784,6 +802,10 @@ function bindChartPointerEvents(panel) {
   }
  });
  const finish=event=>{
+  if(panel.touchPointers.has(event.pointerId)){
+   panel.touchPointers.delete(event.pointerId);
+   if(panel.touchPointers.size<2)panel.pinch=null;
+  }
   if(!panel.drag||panel.drag.pointerId!==event.pointerId)return;
   const wasClick=!panel.drag.moved,p=chartPointerPosition(panel,event);
   panel.drag=null;canvas.style.cursor=panel.type==='graph3d'?'grab':'default';
