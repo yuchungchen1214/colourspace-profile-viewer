@@ -177,9 +177,11 @@ test('charts support two-finger touch pinch zoom', () => {
   assert.match(read('styles.css'), /\.chart-slot canvas\{[^}]*touch-action:none/);
 });
 
-test('mobile reports wrap header metadata and constrain the dashboard to viewport width', () => {
+test('mobile headers wrap metadata in Workspace and reports, and report dashboards fit viewport width', () => {
   const html = read('index.html');
-  assert.match(html, /body\.report-readonly \.header-meta\{[^}]*white-space:normal;overflow-wrap:anywhere/);
+  assert.match(html, /header\{display:flex;flex-direction:column;justify-content:center;align-items:center/);
+  assert.match(html, /\.header-meta\{[^}]*text-align:center[^}]*white-space:normal;overflow-wrap:anywhere/);
+  assert.match(html, /\.app-mode\{display:block;padding-left:0;border-left:0;text-align:center\}/);
   assert.match(html, /body\.report-readonly \.dashboard-layout\.layout-locked\.files-width-locked,[\s\S]*?width:100%;max-width:100%;min-width:0/);
 });
 

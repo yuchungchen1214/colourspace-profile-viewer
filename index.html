@@ -247,10 +247,13 @@ main{width:100%;max-width:none;height:calc(100% - 58px);margin:0;padding:12px;ov
  body.report-readonly .right-layout.layout-locked>.detail-panel{grid-column:2;grid-row:2}
 }
 @media(max-width:700px){
+ header{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:3px;box-sizing:border-box;width:100%;height:auto;min-height:76px;padding:10px 16px;text-align:center}
+ .app-brand{display:flex;width:100%;max-width:100%;min-width:0;flex:initial;flex-direction:column;align-items:center;gap:2px;overflow-wrap:anywhere}
+ .app-brand h1{max-width:100%;white-space:normal;overflow-wrap:anywhere;text-align:center}
+ .app-mode{display:block;padding-left:0;border-left:0;text-align:center}
+ .header-meta{display:block;width:100%;max-width:100%;min-width:0;margin:0;text-align:center;white-space:normal;overflow-wrap:anywhere;word-break:break-word}
+ #headerMetaForm:not([hidden]){box-sizing:border-box;width:100%;max-width:100%;min-width:0;margin:0;flex-wrap:wrap;justify-content:center;white-space:normal}
  body.report-readonly{width:100%;max-width:100%;overflow-x:hidden}
- body.report-readonly header{box-sizing:border-box;width:100%;height:auto;min-height:58px;flex-wrap:wrap;align-content:center;padding:8px 16px}
- body.report-readonly .app-brand{flex:1 1 auto;min-width:0}
- body.report-readonly .header-meta{flex:1 1 100%;width:100%;min-width:0;margin:0;white-space:normal;overflow-wrap:anywhere}
  body.report-readonly main{box-sizing:border-box;width:100%;max-width:100%;min-width:0;overflow-x:hidden}
  body.report-readonly .dashboard-layout.layout-locked.files-width-locked,
  body.report-readonly .files-panel,
