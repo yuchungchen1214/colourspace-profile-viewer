@@ -186,7 +186,7 @@ function renderTargetDetails(){
  $('targetGamut').value=TARGET_CONFIG.gamutId;
  $('targetWhitePoint').value=TARGET_CONFIG.whitePointId;
  $('targetEotf').value=TARGET_CONFIG.eotfId;
- const gammaInput=$('targetGammaValue');gammaInput.disabled=false;gammaInput.step=TARGET_CONFIG.eotfId==='custom'?'any':'0.01';if(gammaInput!==document.activeElement)gammaInput.value=Number.isFinite(eotf.gamma)?(TARGET_CONFIG.eotfId==='custom'?String(eotf.gamma):Number(eotf.gamma).toFixed(TARGET_CONFIG.eotfId==='bt1886'?3:2)):'';gammaInput.title='Edit Gamma; changes EOTF to Custom';
+ const gammaInput=$('targetGammaValue');gammaInput.disabled=false;gammaInput.step='any';if(gammaInput!==document.activeElement)gammaInput.value=Number.isFinite(eotf.gamma)?(TARGET_CONFIG.eotfId==='custom'?String(eotf.gamma):Number(eotf.gamma).toFixed(TARGET_CONFIG.eotfId==='bt1886'?3:2)):'';gammaInput.title='Edit Gamma; changes EOTF to Custom';
  const coordinateInput=(value,label)=>{const input=document.createElement('input');input.type='number';input.step='any';input.value=Number(value).toFixed(4);input.disabled=false;input.setAttribute('aria-label',label);input.title=`Edit ${label}; changes setting to Custom`;input.addEventListener('input',()=>input.setCustomValidity(''));return input};
  const primaries=$('targetPrimaries');
  const coordinateFields=(x,y,xLabel,yLabel)=>{const fields=document.createElement('div');fields.className='target-coordinate-fields';fields.append(coordinateInput(x,xLabel),document.createTextNode(','),coordinateInput(y,yLabel));return fields};
@@ -217,6 +217,7 @@ function renderTargetDetails(){
   try{selectCustomTargetWhitePoint(x,y);whiteCoordinates.querySelectorAll('input').forEach(input=>input.setCustomValidity(''));refresh()}catch(error){event.target.setCustomValidity(error.message)}
  });
 }
+function clearTargetInputValidity(){document.querySelectorAll('.target-summary input').forEach(input=>input.setCustomValidity(''))}
 function gamutCoverage(primaries){
  const xy=patch=>{if(!patch)return null;const total=patch.X+patch.Y+patch.Z;return Number.isFinite(total)&&total>1e-12?[patch.X/total,patch.Y/total]:null};
  let polygon=['R','G','B'].map(channel=>xy(primaries[channel]));
@@ -739,11 +740,13 @@ for(const kind of ['ymax','ymin']){
 }
 $('targetGamut').onchange=event=>{
  selectTargetGamut(event.target.value);
+ clearTargetInputValidity();
  hideChartHover();
  refresh();
 };
 $('targetWhitePoint').onchange=event=>{
  selectTargetWhitePoint(event.target.value);
+ clearTargetInputValidity();
  hideChartHover();
  refresh();
 };
@@ -937,6 +940,7 @@ function resetTargetSettings(){
  selectTargetSettings({gamutId:'srgbRec709',whitePointId:'d65',eotfId:'gamma22'});
  selectTargetLuminance('ymax','measured');selectTargetLuminance('ymin','measured');
  for(const id of ['targetYmaxValue','targetYminValue','targetGammaValue'])$(id).setCustomValidity('');
+ clearTargetInputValidity();
  targetMeasuredPreview=null;
  hideChartHover();refresh();
 }
@@ -947,6 +951,7 @@ function resetReportTargetSettings(){
  if(target.whitePointId==='custom')selectCustomTargetWhitePoint(target.whitePoint.x,target.whitePoint.y);
  if(target.eotfId==='custom')selectCustomTargetGamma(target.eotf.gamma);
  for(const kind of ['ymax','ymin'])selectTargetLuminance(kind,target.luminance[kind].mode,target.luminance[kind].value);
+ clearTargetInputValidity();
  targetMeasuredPreview=null;hideChartHover();refresh();
 }
 function clearPatchDetails(){if(chartHover){chartHover.pinnedData=null;chartHover.hoverData=null;clearPinnedChartRing();hideChartHover()}}
@@ -1105,6 +1110,7 @@ function applyImportedSettings(settings,restoreContent=false){
   if(target.whitePointId==='custom')selectCustomTargetWhitePoint(target.whitePoint.x,target.whitePoint.y);
   if(target.eotfId==='custom')selectCustomTargetGamma(target.eotf.gamma);
   for(const kind of ['ymax','ymin'])selectTargetLuminance(kind,target.luminance[kind].mode,target.luminance[kind].value);
+  clearTargetInputValidity();
  }
  const existingAssignments=restoreContent?null:chartPanels.map(panel=>({selected:new Set(panel.selectedProfiles),localShown:new Set(panel.localShownProfiles)}));
  setProfileSlotAssignments(layout.profilePanelIdsBySlot||[1,2]);setProfileLayout(Number.isInteger(layout.profileRows)?layout.profileRows:2);
@@ -1496,21 +1502,19 @@ document.addEventListener('contextmenu',event=>{
  event.preventDefault();
 });
 const targetDropPanel=document.querySelector('.target-summary');
-const targetPreviewBadge=document.createElement('span');targetPreviewBadge.className='target-preview-badge';targetPreviewBadge.textContent='';targetPreviewBadge.hidden=true;targetPreviewBadge.setAttribute('role','status');targetPreviewBadge.setAttribute('aria-live','polite');
-document.querySelector('.target-summary .panel-heading h2').after(targetPreviewBadge);
 let targetPresetPreview=null;
 function renderTargetPreview(){renderTargetDetails();render();renderProfilePanels()}
 function clearTargetPresetPreview(item=null,redraw=true){
  const preview=targetPresetPreview;if(!preview||item&&preview.item!==item)return;
  TARGET_CONFIG=preview.config;TARGET_RGB_TO_XYZ=preview.rgbToXyz;TARGET_XYZ_TO_RGB=preview.xyzToRgb;
- preview.item.classList.remove('previewing');targetPreviewBadge.hidden=true;targetPreviewBadge.textContent='';targetPresetPreview=null;
+ preview.item.classList.remove('previewing');targetPresetPreview=null;
  if(redraw)renderTargetPreview();
 }
 function beginTargetPreview(item,label,apply){
  if(targetPresetPreview?.item===item)return;
  const base=targetPresetPreview||{config:TARGET_CONFIG,rgbToXyz:TARGET_RGB_TO_XYZ,xyzToRgb:TARGET_XYZ_TO_RGB};
  if(targetPresetPreview){targetPresetPreview.item.classList.remove('previewing');TARGET_CONFIG=base.config;TARGET_RGB_TO_XYZ=base.rgbToXyz;TARGET_XYZ_TO_RGB=base.xyzToRgb}
- targetPresetPreview={...base,item};item.classList.add('previewing');targetPreviewBadge.textContent=`Preview · ${label}`;targetPreviewBadge.hidden=false;
+ targetPresetPreview={...base,item};item.classList.add('previewing');
  try{apply()}catch{clearTargetPresetPreview(item,false);renderTargetPreview();return}
  renderTargetPreview();
 }
@@ -1537,13 +1541,13 @@ function applyImportedTargetSpace(profile){
  if(['R','G','B'].every(channel=>finitePair(primaries[channel])))selectCustomTargetPrimaries(primaries);
  if(validWhitePoint(head.whitePoint))selectCustomTargetWhitePoint(...head.whitePoint);
  if(Number.isFinite(head.gamma)&&head.gamma>0)selectCustomTargetGamma(head.gamma);
- $('targetGammaValue').setCustomValidity('');hideChartHover();refresh();
+ clearTargetInputValidity();hideChartHover();refresh();
 }
 function applyTargetPreset(preset){
  clearTargetPresetPreview(null,false);
  selectTargetSettings({gamutId:preset.gamutId,whitePointId:preset.whitePointId,eotfId:preset.eotfId});
  if(Number.isFinite(preset.gamma))selectCustomTargetGamma(preset.gamma);
- $('targetGammaValue').setCustomValidity('');
+ clearTargetInputValidity();
  hideChartHover();refresh();
 }
 const targetImportDialog=document.createElement('dialog');targetImportDialog.className='target-import-dialog';
@@ -1600,7 +1604,7 @@ targetImportDialog.querySelector('.target-import-apply').onclick=()=>{
   if(selected.has('eotf'))selectCustomTargetGamma(values.eotf.value);
   if(selected.has('ymax'))selectTargetLuminance('ymax','custom',values.ymax.value);
   if(selected.has('ymin'))selectTargetLuminance('ymin','custom',values.ymin.value);
-  if(selected.size){hideChartHover();refresh()}
+  if(selected.size){clearTargetInputValidity();hideChartHover();refresh()}
  }finally{targetImportApplying=false}
 };
 const hasTargetProfilePayload=event=>['application/x-bcs-profile-index','application/x-bcs-target-preset'].some(type=>[...(event.dataTransfer?.types||[])].includes(type));

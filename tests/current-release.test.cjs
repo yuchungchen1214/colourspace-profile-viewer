@@ -44,8 +44,22 @@ test('built-in Color Space hover previews temporarily swap and restore the compl
   assert.match(app, /function beginTargetPreview\(item,label,apply\)\{\s*if\(targetPresetPreview\?\.item===item\)return/);
   assert.doesNotMatch(app, /function beginTargetPreview\(item,label,apply\)\{\s*if\(window\.__viewerReadOnlyReport/);
   assert.match(app, /function refresh\(\)\{\s*if\(targetPresetPreview\)clearTargetPresetPreview\(null,false\)/);
-  assert.match(app, /targetPreviewBadge\.textContent=`Preview · \$\{label\}`/);
+  assert.doesNotMatch(app, /targetPreviewBadge|target-preview-badge|Preview ·/);
+  assert.match(app, /targetPresetPreview=\{\.\.\.base,item\};item\.classList\.add\('previewing'\)/);
   assert.match(read('styles.css'), /\.target-preset-item\.previewing\{/);
+});
+
+test('Target export validation accepts precise built-in gamma values and clears stale field errors on target changes', () => {
+  const app = read('app.js');
+  assert.match(app, /gammaInput\.step='any'/);
+  assert.match(app, /function clearTargetInputValidity\(\)\{document\.querySelectorAll\('\.target-summary input'\)\.forEach\(input=>input\.setCustomValidity\(''\)\)\}/);
+  for (const control of ['targetGamut', 'targetWhitePoint']) {
+    const start = app.indexOf(`$('${control}').onchange=`);
+    const end = app.indexOf('\n};', start);
+    assert.ok(start >= 0 && end > start, `Missing ${control} change handler`);
+    assert.match(app.slice(start, end), /clearTargetInputValidity\(\)/);
+  }
+  assert.match(app, /function assertExportableTarget\(indices\)\{\s*if\(document\.querySelector\('\.target-summary input:invalid'\)\)/);
 });
 
 test('imported target-only bcs previews header gamut, white point, and gamma without committing', () => {
@@ -110,6 +124,15 @@ test('read-only reports temporarily replace Note with Patch details only while h
   assert.match(read('index.html'), /chartHover\.fields\.patchPanel\.hidden=!showPatch/);
   assert.match(read('app.js'), /const detailTitle=clone\.querySelector\('#detailPanelTitle'\);if\(detailTitle\)detailTitle\.textContent='Note'/);
   assert.match(read('app.js'), /const patchView=clone\.querySelector\('\.detail-panel \.patch-panel'\);if\(patchView\)patchView\.hidden=true/);
+});
+
+test('external reports reflow locked workspace widths at medium and narrow viewports', () => {
+  const html = read('index.html');
+  assert.match(html, /@media\(max-width:1500px\)\{[\s\S]*?body\.report-readonly \.dashboard-layout\.layout-locked\.files-width-locked\{grid-template-columns:minmax\(190px,\.65fr\) minmax\(0,2\.35fr\)/);
+  assert.match(html, /body\.report-readonly \.right-layout\.layout-locked\{[^}]*width:auto/);
+  assert.match(html, /@media\(max-width:1050px\)\{[\s\S]*?body\.report-readonly \.dashboard-layout\.layout-locked\.files-width-locked\{grid-template-columns:minmax\(0,1fr\)/);
+  assert.match(html, /@media\(max-width:700px\)\{[\s\S]*?body\.report-readonly \.chart-slots\{grid-template-columns:minmax\(0,1fr\)/);
+  assert.match(html, /body\.report-readonly/);
 });
 
 test('CIE uv auto-fit keeps the default uv bounds in uv coordinates', () => {
